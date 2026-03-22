@@ -1,0 +1,21 @@
+:~  %logs
+    %groups
+    %chat
+    %notify
+    %grouper
+    %groups-ui
+    %channels
+    %channels-server
+    %profile
+    %activity
+    %contacts
+    %reel
+    %bait
+    %growl
+    %bark
+    %genuine
+    %lanyard
+    %dumb-proxy
+    %expose
+    %metagrab
+==
