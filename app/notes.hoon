@@ -43,11 +43,11 @@
   ==
 ::
 ++  on-poke
-  |=  [poke-mark=term poke-vase=vase]
+  |=  [=mark =vase]
   ^-  (quip card _this)
-  ?+  poke-mark  (on-poke:def poke-mark poke-vase)
+  ?+  mark  (on-poke:def mark vase)
       %handle-http-request
-    =/  req  !<([eyre-id=@ta =inbound-request:eyre] poke-vase)
+    =/  req  !<([eyre-id=@ta =inbound-request:eyre] vase)
     =/  data=octs  [(met 3 index) index]
     =/  headers=(list [key=@t value=@t])
       :~  ['content-type' 'text/html']
@@ -62,7 +62,7 @@
       %notes-action
     ?>  =(our src):bowl
     =/  act=action:notes
-      !<(action:notes poke-vase)
+      !<(action:notes vase)
     ?-  -.act
         %create-notebook
       ::  allocate notebook id and root folder id
@@ -336,7 +336,7 @@
             now.bowl
             src.bowl
             now.bowl
-            1
+            0
         ==
       =.  state
         %_  state
@@ -374,7 +374,7 @@
               now.bowl
               src.bowl
               now.bowl
-              1
+              0
           ==
         =.  state
           %_  state
@@ -407,6 +407,7 @@
 ++  on-peek
   |=  =path
   ^-  (unit (unit cage))
+  ?>  =(our src):bowl
   ?+  path  ~
     ::  /x/ui - serve the frontend
       [%x %ui ~]
@@ -534,18 +535,21 @@
 ++  need-notebook
   |=  notebook-id=@ud
   ^-  notebook:notes
+  ~|  [%notes %notebook-not-found notebook-id]
   (~(got by notebooks.state) notebook-id)
 ::
 ::  need-folder: get folder or crash
 ++  need-folder
   |=  folder-id=@ud
   ^-  folder:notes
+  ~|  [%notes %folder-not-found folder-id]
   (~(got by folders.state) folder-id)
 ::
 ::  need-note: get note or crash
 ++  need-note
   |=  note-id=@ud
   ^-  note:notes
+  ~|  [%notes %note-not-found note-id]
   (~(got by notes.state) note-id)
 ::
 ::  touch-notebook: update notebook timestamp
