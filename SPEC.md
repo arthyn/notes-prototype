@@ -326,28 +326,6 @@ scribe/
 
 ---
 
-## v1.1 (Planned)
-
-- **Per-folder permissions (ACL layering)**
-  - Keep notebook-wide membership as baseline.
-  - Add optional folder-level overrides for read/write.
-  - Preserve simple defaults so teams can ignore this until needed.
-
-- **Join flow refinements**
-  - Optional invite/join-request UX on top of v0 `join`/`leave` primitives.
-
-- **Sync ergonomics**
-  - First-class `since-seq` recovery in clients (better reconnect and stale-state UX).
-  - Snapshot+tail fallback for large gaps.
-
-- **Export/import fidelity upgrades**
-  - Optional manifest round-trip mode with stable IDs + revisions.
-
-- **Editor polish pass**
-  - Better conflict merge UX and keyboard-driven navigation improvements.
-
----
-
 ## Open Questions
 
 1. Should notebook membership be invite-only, or can links grant join requests?
@@ -377,3 +355,119 @@ scribe/
 - AI writing/copilot features
 
 Keep v1 tight: **great writing + reliable shared Markdown notebooks**.
+
+---
+
+## v1.1 Extension: Knowledge Compiler Mode (Self-Contained)
+
+### Positioning
+`%notes` is both:
+1. **System of record** (raw sources, compiled synthesis, outputs)
+2. **Build system** (ingest → compile → lint → query → promote)
+
+Obsidian (or any Markdown client) is optional UI only.
+
+### Goals
+- Preserve the writing-first v1 UX
+- Enable Karpathy-style LLM knowledge workflows natively in `%notes`
+- Keep provenance, reproducibility, and quality controls explicit
+
+### Notebook Class
+Add notebook `mode`:
+- `human` (default): normal writing notebook
+- `knowledge`: compiler-oriented workflow with structured folders and jobs
+
+### Required Folder Contract (knowledge mode)
+Inside each `knowledge` notebook, maintain these top-level folders:
+- `00_raw/` — source captures (immutable by default)
+- `10_index/` — machine indexes/manifests
+- `20_compiled/` — synthesized concept/topic pages
+- `30_outputs/` — query artifacts (briefs/slides/reports)
+- `40_lint/` — integrity and quality reports
+
+### Metadata Contract (per note)
+Keep body as plain Markdown; track metadata in Gall state:
+- `kind`: `raw | index | compiled | output | lint`
+- `provenance`: list of source note IDs/paths + optional URL
+- `generated_by`: `human | llm:<model-id>`
+- `generated_at`
+- `compiler_run_id` (optional)
+- `confidence` (optional float 0..1)
+- `stale` (derived flag)
+
+### Immutable-by-Default Raw Layer
+For notes under `00_raw/`:
+- deny normal update/move/delete by compiler jobs
+- allow updates only via explicit ingest/reingest actions
+- permit human override with explicit force flag
+
+### Job Pipeline (first-class operations)
+Add long-running notebook jobs:
+1. `ingest` — add/update source material into `00_raw/`
+2. `compile` — produce/update synthesis in `20_compiled/` and indexes in `10_index/`
+3. `query` — generate artifacts in `30_outputs/`
+4. `lint` — run integrity checks and emit reports in `40_lint/`
+5. `promote` — merge selected `30_outputs/` artifacts into canonical `20_compiled/`
+
+### New Pokes (mutations)
+- `%set-notebook-mode [notebook-id mode]`
+- `%ingest-sources [notebook-id payload options]`
+- `%compile-notebook [notebook-id scope options]`
+- `%query-notebook [notebook-id prompt options]`
+- `%lint-notebook [notebook-id checks options]`
+- `%promote-output [notebook-id output-note-id target-path strategy]`
+- `%rebuild-compiled-page [notebook-id note-id options]`
+
+### New Peeks (queries)
+- `/notebook/<id>/mode`
+- `/notebook/<id>/jobs`
+- `/notebook/<id>/index/manifest`
+- `/notebook/<id>/lint/latest`
+- `/notebook/<id>/provenance/<noteId>`
+
+### New Watches (subscriptions)
+- `/notebook/<id>/jobs` (job progress/status)
+- `/notebook/<id>/lint` (new report events)
+- `/notebook/<id>/provenance` (source-link updates)
+
+### Knowledge Events
+Emit additional typed events:
+- `job-started|job-progress|job-completed|job-failed`
+- `sources-ingested`
+- `compiled-page-updated`
+- `output-generated`
+- `output-promoted`
+- `lint-report-generated`
+- `provenance-updated`
+
+### Lint Gate Set (minimum)
+- `unsourced-claims` — claims in compiled/output notes lacking provenance
+- `broken-links` — unresolved wiki/markdown links
+- `orphan-notes` — notes with zero in/out links (configurable)
+- `contradiction-candidates` — semantically conflicting statements
+- `stale-compiled` — compiled notes older than newest referenced raw source
+
+### Determinism + Reproducibility
+Each compile/query/lint run should persist a run manifest in `10_index/`:
+- job type, timestamp, model/tool versions, options
+- input note IDs/revisions
+- output note IDs/revisions
+- summary diff/changelog
+
+### Promotion Workflow
+Promotion is explicit (never implicit):
+- select output note from `30_outputs/`
+- choose target in `20_compiled/`
+- strategy: `replace | append | merge`
+- preserve provenance links and add promotion event
+
+### Compatibility Guarantee
+This extension **does not** change Markdown body fidelity:
+- notes remain plain `.md`
+- links preserved
+- metadata remains in Gall state (exportable via optional manifest)
+
+### Suggested Milestones (post-v1)
+- **M6:** notebook mode + folder contract + job framework
+- **M7:** compile/query jobs + provenance tracking
+- **M8:** lint suite + promotion workflow + run manifests
