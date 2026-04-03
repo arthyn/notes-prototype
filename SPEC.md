@@ -27,7 +27,7 @@ Working name: **%scribe** (placeholder)
 ## v1 Scope
 
 ### Included
-- Notebook creation + membership + roles
+- Notebook creation + membership (join/leave)
 - Folder CRUD within a notebook
 - Note CRUD in folders
 - Plain Markdown editor + preview
@@ -35,6 +35,7 @@ Working name: **%scribe** (placeholder)
 - Wiki-links (`[[Note Name]]`) and standard links (`[text](path.md)`)
 - Backlinks index (derived)
 - Import/export of Markdown folder trees
+- Versioned v0 event/update streams
 
 ### Deferred (v2+)
 - Tags and tag views
@@ -48,9 +49,10 @@ Working name: **%scribe** (placeholder)
 ## User Model
 
 ### Actors
-- **Owner**: full control, manage roles, delete notebook
-- **Editor**: create/edit/move/delete folders and notes
-- **Viewer**: read-only
+- **Member**: can access notebook content after joining
+- **Creator**: creator metadata is retained for auditing
+
+> Note: role-based ACLs are deferred; v0 uses membership join/leave semantics.
 
 ### Core Objects
 - **Notebook**: shared space (channel-like)
@@ -117,59 +119,53 @@ Working name: **%scribe** (placeholder)
 
 ## Permissions & Auth
 
-- Every mutating action checks sender role against notebook ACL.
+- Every mutating action checks sender membership.
 - View actions (peek/watch) require membership.
-- Owner can grant/revoke editor/viewer roles.
+- Membership changes are `join` / `leave` actions.
 - Server-side validation for all paths and IDs.
 
 ---
 
 ## API Contract (agent surface)
 
+### v0 Contract Shape (ACUR)
+- `a-*`: client actions
+- `c-*`: server commands (includes actor)
+- `u-*`: canonical durable updates (append-only, sequenced)
+- `r-*`: client-facing responses
+
+Materialized state is derived from applying `u-*` updates; replay uses `since-seq`.
+
 ## Pokes (mutations)
-- `%create-notebook [title]`
-- `%rename-notebook [notebook-id title]`
-- `%invite-member [notebook-id ship role]`
-- `%remove-member [notebook-id ship]`
-- `%set-role [notebook-id ship role]`
+- `%notes-action` (client action envelope)
+- `%notes-command` (server command envelope, actor-attached)
 
-- `%create-folder [notebook-id parent-folder-id name]`
-- `%rename-folder [notebook-id folder-id name]`
-- `%move-folder [notebook-id folder-id new-parent-folder-id]`
-- `%delete-folder [notebook-id folder-id recursive=?]`
-
-- `%create-note [notebook-id folder-id title body-md]`
-- `%update-note [notebook-id note-id body-md expected-revision]`
-- `%rename-note [notebook-id note-id title]`
-- `%move-note [notebook-id note-id folder-id]`
-- `%delete-note [notebook-id note-id]`
-
-- `%reindex-links [notebook-id note-id?]`
-- `%import-markdown-tree [notebook-id tarball-or-structured-payload]`
+Action/command verbs (v0):
+- `create-notebook`, `rename-notebook`, `join`, `leave`
+- `create-folder`, `rename-folder`, `move-folder`, `delete-folder`
+- `create-note`, `update-note`, `rename-note`, `move-note`, `delete-note`
+- `import-markdown-tree`
 
 ## Peeks (queries)
-- `/notebooks`
-- `/notebook/<id>/tree`
-- `/notebook/<id>/folder/<id>`
-- `/notebook/<id>/note/<id>`
-- `/notebook/<id>/note/<id>/backlinks`
-- `/notebook/<id>/search?q=<term>`
+- `/v0/notebooks`
+- `/v0/notebook/<id>/tree`
+- `/v0/notebook/<id>/folder/<id>`
+- `/v0/notebook/<id>/note/<id>`
+- `/v0/updates/<notebook-id>/<since-seq>` (replay)
 
 ## Watches (subscriptions)
-- `/notebook/<id>/events` (high-level domain events)
-- `/notebook/<id>/tree` (structure updates)
-- `/notebook/<id>/note/<id>` (note updates)
+- `/v0/events/<notebook-id>` (high-level domain events)
+- `/v0/stream/<notebook-id>` (sequenced response/update stream)
 
 ---
 
 ## Event Model
 
 Emit typed events for UI sync:
-- `notebook-created`
-- `member-added|member-removed|role-changed`
-- `folder-created|renamed|moved|deleted`
-- `note-created|updated|renamed|moved|deleted`
-- `links-reindexed`
+- `notebook-created|notebook-renamed`
+- `member-joined|member-left`
+- `folder-created|folder-renamed|folder-moved|folder-deleted`
+- `note-created|note-updated|note-renamed|note-moved|note-deleted`
 
 Each event includes:
 - `notebook_id`
