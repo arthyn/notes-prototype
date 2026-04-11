@@ -488,7 +488,13 @@ async function loadNotebooks() {
   const data = await scry("/notebooks");
   if (!data) return;
   notebooks = {};
-  (data || []).forEach(nb => notebooks[nb.id] = nb);
+  (data || []).forEach(entry => {
+    const nb = entry.notebook;
+    nb.host = entry.host;
+    nb.flagName = entry.flagName;
+    nb.flag = `${entry.host}/${entry.flagName}`;
+    notebooks[nb.id] = nb;
+  });
   renderNotebooks();
 }
 
@@ -857,7 +863,7 @@ async function selectNotebook(id) {
   if (!await confirmDirty()) return;
   activeNotebookId = id;
   const nb = notebooks[id];
-  activeNotebookFlag = nb ? `${SHIP}/${id}` : null;
+  activeNotebookFlag = nb ? nb.flag : null;
   activeFolderId = null;
   activeNoteId = null;
   clearEditor();

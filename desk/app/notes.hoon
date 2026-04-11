@@ -133,22 +133,18 @@
       (join-remote flag.act)
     ?:  ?=(%leave-remote -.act)
       (leave-remote flag.act)
-    ::  for other actions, look up the notebook by id and route
+    ::  for other actions, look up the notebook by id across all books
     =/  nid=@ud  (action-notebook-id act)
-    =/  =flag:notes  [our.bowl (scot %ud nid)]
-    ::  check if we host this notebook
-    ?:  (~(has by books.state) flag)
-      =/  entry=[=net:notes =notebook-state:notes]
-        (~(got by books.state) flag)
-      ?:  ?=(%pub -.net.entry)
-        ::  we host it — process as server command
-        =/  cmd=command:notes
-          (action-to-command act src.bowl)
-        se-abet:(se-poke:(se-abed:se-core flag) cmd)
-      ::  we subscribe to it — forward to host
-      no-abet:(no-action:(no-abed:no-core flag) act)
-    ::  not found locally at all — crash
-    ~|(notebook-not-found+nid !!)
+    =/  =flag:notes  (find-flag-by-nid nid)
+    =/  entry=[=net:notes =notebook-state:notes]
+      (~(got by books.state) flag)
+    ?:  ?=(%pub -.net.entry)
+      ::  we host it — process as server command
+      =/  cmd=command:notes
+        (action-to-command act src.bowl)
+      se-abet:(se-poke:(se-abed:se-core flag) cmd)
+    ::  we subscribe to it — forward to host
+    no-abet:(no-action:(no-abed:no-core flag) act)
   ::
       %notes-command
     =/  cmd=command:notes  !<(command:notes vase)
@@ -249,7 +245,11 @@
       %+  murn  ~(tap by books.state)
       |=  [=flag:notes [=net:notes =notebook-state:notes]]
       ?.  (can-view-flag flag src.bowl)  ~
-      `(notebook:enjs:notes-json notebook.notebook-state)
+      =-  `(pairs:enjs:format -)
+      :~  ['host' s+(scot %p ship.flag)]
+          ['flagName' s+name.flag]
+          ['notebook' (notebook:enjs:notes-json notebook.notebook-state)]
+      ==
     ``json+!>([%a nbs])
     ::  /x/notebook/<ship>/<name>
       [%x %notebook ship=@ name=@ ~]
@@ -258,7 +258,11 @@
       (~(get by books.state) flag)
     ?~  entry  ``json+!>(~)
     ?>  (can-view-flag flag src.bowl)
-    ``json+!>((notebook:enjs:notes-json notebook.notebook-state.u.entry))
+    =-  ``json+!>((pairs:enjs:format -))
+    :~  ['host' s+(scot %p ship.flag)]
+        ['flagName' s+name.flag]
+        ['notebook' (notebook:enjs:notes-json notebook.notebook-state.u.entry)]
+    ==
     ::  /x/folders/<ship>/<name>
       [%x %folders ship=@ name=@ ~]
     =/  =flag:notes  [(slav %p ship.pole) name.pole]
@@ -322,6 +326,19 @@
       cor
     ==
   ==
+::
+::  +find-flag-by-nid: find the flag for a notebook by its numeric id
+++  find-flag-by-nid
+  |=  nid=@ud
+  ^-  flag:notes
+  =/  matches=(list flag:notes)
+    %+  murn  ~(tap by books.state)
+    |=  [=flag:notes [=net:notes =notebook-state:notes]]
+    ?:  =(nid id.notebook.notebook-state)
+      `flag
+    ~
+  ?~  matches  ~|(notebook-not-found+nid !!)
+  i.matches
 ::
 ++  arvo
   |=  [=wire =sign-arvo]
