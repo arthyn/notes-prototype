@@ -1,14 +1,14 @@
 /-  notes
 /+  notes-json
-|_  =a-notes:notes
+|_  =action:notes
 ++  grad  %noun
 ++  grab
   |%
-  ++  noun  a-notes:notes
+  ++  noun  action:notes
   ++  json  action:dejs:notes-json
   --
 ++  grow
   |%
-  ++  noun  a-notes
+  ++  noun  action
   --
 --

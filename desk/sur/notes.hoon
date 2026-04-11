@@ -1,4 +1,4 @@
-::  notes: shared notebook surface types (ACUR split)
+::  notes: shared notebook surface types
 ::
 |%
 +$  role
@@ -43,6 +43,28 @@
       [%note title=@t body-md=@t]
   ==
 ::
+::  flag: global notebook identity (ship + name)
++$  flag  [=ship name=@t]
+::
+::  notebook-state: all data for a single notebook
++$  notebook-state
+  $:  =notebook
+      =notebook-members
+      folders=(map @ud folder)
+      notes=(map @ud note)
+  ==
+::
+::  log: time-ordered append-only update log
++$  log    ((mop time u-notes) lte)
+++  log-on  ((on time u-notes) lte)
+::
+::  net: host vs subscriber discriminator
++$  net
+  $~  [%pub *log]
+  $%  [%pub =log]
+      [%sub =time init=_|]
+  ==
+::
 ::  ACUR
 +$  a-notes
   $%  [%create-notebook title=@t]
@@ -57,7 +79,7 @@
       [%rename-note notebook-id=@ud note-id=@ud title=@t]
       [%move-note note-id=@ud notebook-id=@ud folder-id=@ud]
       [%delete-note note-id=@ud notebook-id=@ud]
-      [%update-note note-id=@ud body-md=@t expected-revision=@ud]
+      [%update-note notebook-id=@ud note-id=@ud body-md=@t expected-revision=@ud]
       [%batch-import notebook-id=@ud folder-id=@ud notes=(list [title=@t body-md=@t])]
       $:  %batch-import-tree
           notebook-id=@ud
@@ -79,7 +101,7 @@
       [%rename-note notebook-id=@ud note-id=@ud title=@t actor=ship]
       [%move-note note-id=@ud notebook-id=@ud folder-id=@ud actor=ship]
       [%delete-note note-id=@ud notebook-id=@ud actor=ship]
-      [%update-note note-id=@ud body-md=@t expected-revision=@ud actor=ship]
+      [%update-note notebook-id=@ud note-id=@ud body-md=@t expected-revision=@ud actor=ship]
       [%batch-import notebook-id=@ud folder-id=@ud notes=(list [title=@t body-md=@t]) actor=ship]
       $:  %batch-import-tree
           notebook-id=@ud
@@ -89,33 +111,54 @@
       ==
   ==
 ::
+::  u-notes: updates carry full data so subscribers can replay the log
 +$  u-notes
-  $%  [%notebook-created notebook-id=@ud actor=ship]
-      [%notebook-renamed notebook-id=@ud actor=ship]
-      [%member-joined notebook-id=@ud who=ship actor=ship]
+  $%  [%notebook-created =notebook actor=ship]
+      [%notebook-renamed notebook-id=@ud title=@t actor=ship]
+      [%member-joined notebook-id=@ud who=ship role=role actor=ship]
       [%member-left notebook-id=@ud who=ship actor=ship]
-      [%folder-created folder-id=@ud notebook-id=@ud actor=ship]
-      [%folder-renamed folder-id=@ud notebook-id=@ud actor=ship]
-      [%folder-moved folder-id=@ud notebook-id=@ud actor=ship]
+      [%folder-created =folder actor=ship]
+      [%folder-renamed folder-id=@ud notebook-id=@ud name=@t actor=ship]
+      [%folder-moved folder-id=@ud notebook-id=@ud new-parent-folder-id=@ud actor=ship]
       [%folder-deleted folder-id=@ud notebook-id=@ud actor=ship]
-      [%note-created note-id=@ud notebook-id=@ud actor=ship]
-      [%note-renamed note-id=@ud notebook-id=@ud actor=ship]
+      [%note-created =note actor=ship]
+      [%note-renamed note-id=@ud notebook-id=@ud title=@t actor=ship]
       [%note-moved note-id=@ud notebook-id=@ud folder-id=@ud actor=ship]
       [%note-deleted note-id=@ud notebook-id=@ud actor=ship]
-      [%note-updated note-id=@ud notebook-id=@ud revision=@ud actor=ship]
+      [%note-updated =note actor=ship]
   ==
 ::
 +$  r-notes
-  $%  [%update seq=@ud update=u-notes]
-      [%snapshot notebook-id=@ud notebook=(unit notebook) folders=(list folder) notes=(list note)]
+  $%  [%update =time =u-notes]
+      [%snapshot =flag =notebook-state]
   ==
 ::
-::  compatibility aliases (transition)
-+$  action  a-notes
-+$  event   u-notes
+::  type aliases
++$  action    a-notes
++$  command   c-notes
++$  update    u-notes
++$  response  r-notes
++$  event     u-notes
 ::
+::  state-0: legacy single-player state (kept for migration)
+::  updates uses * to avoid type-checking old event shapes
 +$  state-0
-  [%0 notebooks=(map @ud notebook) folders=(map @ud folder) notes=(map @ud note) members=(map @ud notebook-members) next-id=@ud updates=(map @ud u-notes) next-update-id=@ud]
+  $:  %0
+      notebooks=(map @ud notebook)
+      folders=(map @ud folder)
+      notes=(map @ud note)
+      members=(map @ud notebook-members)
+      next-id=@ud
+      updates=*
+      next-update-id=@ud
+  ==
 ::
-+$  state  state-0
+::  state-1: dual-mode host/subscriber state
++$  state-1
+  $:  %1
+      books=(map flag [=net =notebook-state])
+      next-id=@ud
+  ==
+::
++$  state  state-1
 --

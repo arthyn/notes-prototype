@@ -1,12 +1,12 @@
 /-  notes
-|_  =c-notes:notes
+|_  =command:notes
 ++  grad  %noun
 ++  grab
   |%
-  ++  noun  c-notes:notes
+  ++  noun  command:notes
   --
 ++  grow
   |%
-  ++  noun  c-notes
+  ++  noun  command
   --
 --

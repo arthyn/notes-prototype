@@ -60,7 +60,7 @@
     ?-  -.evt
         %notebook-created
       :~  ['type' s+'notebook-created']
-          ['notebookId' (numb notebook-id.evt)]
+          ['notebookId' (numb id.notebook.evt)]
           ['actor' s+(scot %p actor.evt)]
       ==
         %notebook-renamed
@@ -82,8 +82,8 @@
       ==
         %folder-created
       :~  ['type' s+'folder-created']
-          ['folderId' (numb folder-id.evt)]
-          ['notebookId' (numb notebook-id.evt)]
+          ['folderId' (numb id.folder.evt)]
+          ['notebookId' (numb notebook-id.folder.evt)]
           ['actor' s+(scot %p actor.evt)]
       ==
         %folder-renamed
@@ -106,8 +106,8 @@
       ==
         %note-created
       :~  ['type' s+'note-created']
-          ['noteId' (numb note-id.evt)]
-          ['notebookId' (numb notebook-id.evt)]
+          ['noteId' (numb id.note.evt)]
+          ['notebookId' (numb notebook-id.note.evt)]
           ['actor' s+(scot %p actor.evt)]
       ==
         %note-renamed
@@ -131,9 +131,9 @@
       ==
         %note-updated
       :~  ['type' s+'note-updated']
-          ['noteId' (numb note-id.evt)]
-          ['notebookId' (numb notebook-id.evt)]
-          ['revision' (numb revision.evt)]
+          ['noteId' (numb id.note.evt)]
+          ['notebookId' (numb notebook-id.note.evt)]
+          ['revision' (numb revision.note.evt)]
           ['actor' s+(scot %p actor.evt)]
       ==
     ==
@@ -214,7 +214,7 @@
     ::
         %'update-note'
       :-  %update-note
-      ((ot ~[['noteId' ni] ['bodyMd' so] ['expectedRevision' ni]]) val)
+      ((ot ~[['notebookId' ni] ['noteId' ni] ['bodyMd' so] ['expectedRevision' ni]]) val)
     ::
         %'batch-import'
       :-  %batch-import
