@@ -137,6 +137,23 @@
           ['actor' s+(scot %p actor.evt)]
       ==
     ==
+  ::
+  ++  response
+    |=  res=response:notes
+    ^-  json
+    ?-  -.res
+        %update
+      %-  pairs
+      :~  ['response' s+'update']
+          ['update' (event u-notes.res)]
+      ==
+        %snapshot
+      %-  pairs
+      :~  ['response' s+'snapshot']
+          ['host' s+(scot %p ship.flag.res)]
+          ['flagName' s+name.flag.res]
+      ==
+    ==
   --
 ::
 ::  +dejs: decode JSON to notes types

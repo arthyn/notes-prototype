@@ -409,16 +409,29 @@ async function connect() {
 // ── Eyre Channel ──────────────────────────────────────────────────────────
 function openChannel() {
   channelId = `notes-ui-${Date.now()}`;
-  subscribeEvents();
 }
 
-function subscribeEvents() {
-  // Subscribe to /events and open SSE channel
-  poke([{
-    id: msgId++, action: "subscribe",
+let activeSubscriptionId = null;
+
+async function subscribeEvents() {
+  if (!activeNotebookFlag) return;
+  // Unsubscribe from previous notebook if any
+  if (activeSubscriptionId !== null) {
+    await poke([{
+      id: msgId++, action: "unsubscribe",
+      subscription: activeSubscriptionId
+    }]);
+    activeSubscriptionId = null;
+  }
+  // Subscribe to this notebook's stream
+  const subId = msgId++;
+  activeSubscriptionId = subId;
+  await poke([{
+    id: subId, action: "subscribe",
     ship: SHIP.replace("~",""),
-    app: "notes", path: "/events"
+    app: "notes", path: `/v0/notes/${activeNotebookFlag}/stream`
   }]);
+  // Start SSE after the channel is created by the PUT
   startSSE();
 }
 
@@ -468,16 +481,37 @@ async function scry(path) {
 // ── Event Handling ────────────────────────────────────────────────────────
 function handleEvent(msg) {
   if (!msg.json) return;
-  const evt = msg.json;
-  const type = evt.type;
+  const data = msg.json;
 
-  // Reload relevant data on events
+  // Handle response envelope from /stream subscription
+  if (data.response === "snapshot") {
+    // Full reload on snapshot
+    loadNotebooks();
+    return;
+  }
+  if (data.response === "update") {
+    const evt = data.update;
+    const type = evt.type;
+    // Reload relevant data on events
+    if (type === "notebook-created" || type === "notebook-renamed") loadNotebooks();
+    else if (type?.startsWith("folder-")) loadFolders(activeNotebookId);
+    else if (type?.startsWith("note-")) {
+      loadNotes(activeNotebookId, activeFolderId);
+      // If the note we are editing was updated remotely
+      if (type === "note-updated" && evt.noteId === activeNoteId && !dirty) {
+        loadNote(activeNoteId);
+      }
+    }
+    return;
+  }
+
+  // Fallback: try handling as a raw event (backwards compat)
+  const type = data.type;
   if (type === "notebook-created" || type === "notebook-renamed") loadNotebooks();
   else if (type?.startsWith("folder-")) loadFolders(activeNotebookId);
   else if (type?.startsWith("note-")) {
     loadNotes(activeNotebookId, activeFolderId);
-    // If the note we are editing was updated remotely
-    if (type === "note-updated" && evt.noteId === activeNoteId && !dirty) {
+    if (type === "note-updated" && data.noteId === activeNoteId && !dirty) {
       loadNote(activeNoteId);
     }
   }
@@ -935,13 +969,13 @@ async function saveNote() {
   document.getElementById("save-status").textContent = "Saving…";
 
   try {
-    // Rename if title changed
+    // Update body first (uses expectedRevision)
+    await pokeAction({ "update-note": { notebookId: n.notebookId, noteId: activeNoteId, bodyMd: body, expectedRevision: savedRevision } });
+    savedRevision++;
+    // Rename if title changed (after body update so revision is correct)
     if (title !== n.title) {
       await pokeAction({ "rename-note": { notebookId: n.notebookId, noteId: activeNoteId, title } });
     }
-    // Update body
-    await pokeAction({ "update-note": { notebookId: n.notebookId, noteId: activeNoteId, bodyMd: body, expectedRevision: savedRevision } });
-    savedRevision++;
     notes[activeNoteId] = { ...n, title, bodyMd: body, revision: savedRevision };
     clearDirty();
     document.getElementById("save-status").textContent = "Saved";

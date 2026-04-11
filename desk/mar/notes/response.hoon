@@ -1,4 +1,5 @@
 /-  notes
+/+  notes-json
 |_  =response:notes
 ++  grad  %noun
 ++  grab
@@ -8,5 +9,6 @@
 ++  grow
   |%
   ++  noun  response
+  ++  json  (response:enjs:notes-json response)
   --
 --
