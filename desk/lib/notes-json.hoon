@@ -61,11 +61,13 @@
         %notebook-created
       :~  ['type' s+'notebook-created']
           ['notebookId' (numb id.notebook.evt)]
+          ['notebook' (notebook notebook.evt)]
           ['actor' s+(scot %p actor.evt)]
       ==
         %notebook-renamed
       :~  ['type' s+'notebook-renamed']
           ['notebookId' (numb notebook-id.evt)]
+          ['title' s+title.evt]
           ['actor' s+(scot %p actor.evt)]
       ==
         %member-joined
@@ -84,18 +86,21 @@
       :~  ['type' s+'folder-created']
           ['folderId' (numb id.folder.evt)]
           ['notebookId' (numb notebook-id.folder.evt)]
+          ['folder' (folder folder.evt)]
           ['actor' s+(scot %p actor.evt)]
       ==
         %folder-renamed
       :~  ['type' s+'folder-renamed']
           ['folderId' (numb folder-id.evt)]
           ['notebookId' (numb notebook-id.evt)]
+          ['name' s+name.evt]
           ['actor' s+(scot %p actor.evt)]
       ==
         %folder-moved
       :~  ['type' s+'folder-moved']
           ['folderId' (numb folder-id.evt)]
           ['notebookId' (numb notebook-id.evt)]
+          ['newParentFolderId' (numb new-parent-folder-id.evt)]
           ['actor' s+(scot %p actor.evt)]
       ==
         %folder-deleted
@@ -108,12 +113,14 @@
       :~  ['type' s+'note-created']
           ['noteId' (numb id.note.evt)]
           ['notebookId' (numb notebook-id.note.evt)]
+          ['note' (note note.evt)]
           ['actor' s+(scot %p actor.evt)]
       ==
         %note-renamed
       :~  ['type' s+'note-renamed']
           ['noteId' (numb note-id.evt)]
           ['notebookId' (numb notebook-id.evt)]
+          ['title' s+title.evt]
           ['actor' s+(scot %p actor.evt)]
       ==
         %note-moved
@@ -134,6 +141,7 @@
           ['noteId' (numb id.note.evt)]
           ['notebookId' (numb notebook-id.note.evt)]
           ['revision' (numb revision.note.evt)]
+          ['note' (note note.evt)]
           ['actor' s+(scot %p actor.evt)]
       ==
     ==

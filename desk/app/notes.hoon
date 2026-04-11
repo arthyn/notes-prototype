@@ -285,6 +285,30 @@
       %+  turn  ~(val by notes.notebook-state.u.entry)
       note:enjs:notes-json
     ``json+!>([%a nts])
+    ::  /x/note/<ship>/<name>/<id> — single note by ID
+      [%x %note ship=@ name=@ id=@ ~]
+    =/  =flag:notes  [(slav %p ship.pole) name.pole]
+    =/  entry=(unit [=net:notes =notebook-state:notes])
+      (~(get by books.state) flag)
+    ?~  entry  ``json+!>(~)
+    ?>  (can-view-flag flag src.bowl)
+    =/  nid=@ud  (slav %ud id.pole)
+    =/  nt=(unit note:notes)
+      (~(get by notes.notebook-state.u.entry) nid)
+    ?~  nt  ``json+!>(~)
+    ``json+!>((note:enjs:notes-json u.nt))
+    ::  /x/folder/<ship>/<name>/<id> — single folder by ID
+      [%x %folder ship=@ name=@ id=@ ~]
+    =/  =flag:notes  [(slav %p ship.pole) name.pole]
+    =/  entry=(unit [=net:notes =notebook-state:notes])
+      (~(get by books.state) flag)
+    ?~  entry  ``json+!>(~)
+    ?>  (can-view-flag flag src.bowl)
+    =/  fid=@ud  (slav %ud id.pole)
+    =/  fld=(unit folder:notes)
+      (~(get by folders.notebook-state.u.entry) fid)
+    ?~  fld  ``json+!>(~)
+    ``json+!>((folder:enjs:notes-json u.fld))
     ::  /x/members/<ship>/<name>
       [%x %members ship=@ name=@ ~]
     =/  =flag:notes  [(slav %p ship.pole) name.pole]
@@ -487,10 +511,12 @@
       ?~  existing  now.bowl
       $(now.bowl `@da`(add now.bowl ^~((div ~s1 (bex 16)))))
     =.  log  (put:log-on:notes log [ts u-notes])
-    ::  broadcast fact to all subscribers on the update path
+    ::  broadcast fact to subscribers on both the update and stream paths
     =/  =response:notes  [%update ts u-notes]
+    =/  stream-path=path  (weld se-area /stream)
+    =/  paths=(list path)  ~[se-sub-path stream-path]
     %-  give
-    [%fact [se-sub-path]~ notes-response+!>(response)]
+    [%fact paths notes-response+!>(response)]
   ::
   ::  +se-watch-sub: send initial snapshot to a new subscriber
   ++  se-watch-sub
@@ -808,7 +834,10 @@
       (~(got by notes.notebook-state) note-id.cmd)
     ?>  (se-can-edit actor.cmd)
     ::  optimistic concurrency check
-    ?>  =(revision.nt expected-revision.cmd)
+    ::  when expected-revision is 0, skip the check (force update) —
+    ::  subscribers may have stale revisions
+    ?:  &(!=(0 expected-revision.cmd) !=(revision.nt expected-revision.cmd))
+      ~|(%revision-mismatch !!)
     =.  nt
       %_  nt
         body-md     body-md.cmd

@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Notes Sync</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+    <!-- Header -->
+    <div class="header">
+      <h1>Notes Sync</h1>
+      <button id="settings-btn" class="icon-btn" title="Settings">&#9881;</button>
+    </div>
+
+    <!-- Status View -->
+    <div id="status-view" class="view active">
+      <div class="status-row">
+        <span id="status-dot" class="dot disconnected"></span>
+        <span id="status-text">Disconnected</span>
+      </div>
+      <div id="ship-info" class="info-row hidden">
+        <span id="ship-name"></span>
+        <span id="last-sync" class="muted"></span>
+      </div>
+      <div id="conflict-bar" class="conflict-bar hidden">
+        <span id="conflict-count">0</span> conflict(s)
+        <button id="show-conflicts-btn" class="link-btn">View</button>
+      </div>
+      <div class="section-label">Activity</div>
+      <div id="activity-log" class="activity-log">
+        <div class="empty-state">No sync activity yet</div>
+      </div>
+    </div>
+
+    <!-- Settings View -->
+    <div id="settings-view" class="view">
+      <div class="section-label">Connection</div>
+      <label>Ship URL
+        <input id="ship-url" type="url" placeholder="http://localhost:8080">
+      </label>
+      <label>Access Code
+        <input id="access-code" type="password" placeholder="+code">
+      </label>
+      <label>Sync Directory
+        <div class="dir-picker">
+          <input id="sync-dir" type="text" placeholder="~/Notes" readonly>
+          <button id="pick-dir-btn" class="small-btn">Browse</button>
+        </div>
+      </label>
+
+      <div class="btn-row">
+        <button id="connect-btn" class="primary-btn">Connect</button>
+        <button id="disconnect-btn" class="danger-btn hidden">Disconnect</button>
+      </div>
+
+      <div id="notebook-select" class="hidden">
+        <div class="section-label">Notebooks</div>
+        <div id="notebook-list" class="notebook-list"></div>
+        <button id="save-notebooks-btn" class="primary-btn">Start Sync</button>
+      </div>
+
+      <div class="footer-actions">
+        <button id="back-btn" class="link-btn">&larr; Back</button>
+        <button id="quit-btn" class="link-btn danger">Quit</button>
+      </div>
+    </div>
+
+    <!-- Conflicts View -->
+    <div id="conflicts-view" class="view">
+      <div class="section-label">Conflicts</div>
+      <div id="conflict-list" class="conflict-list">
+        <div class="empty-state">No conflicts</div>
+      </div>
+      <button id="conflicts-back-btn" class="link-btn">&larr; Back</button>
+    </div>
+  </div>
+
+  <script src="main.js"></script>
+</body>
+</html>
