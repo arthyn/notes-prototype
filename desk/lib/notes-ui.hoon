@@ -72,7 +72,8 @@
     overflow: hidden;
   }
   .sidebar-section {
-    padding: 8px 8px 4px;
+    height: 41px;
+    padding: 0 8px;
     font-size: 10px;
     font-weight: 700;
     text-transform: uppercase;
@@ -133,7 +134,8 @@
     overflow: hidden;
   }
   .notes-panel-header {
-    padding: 10px 12px;
+    height: 41px;
+    padding: 0 12px;
     font-size: 12px;
     font-weight: 600;
     color: var(--text-muted);
@@ -163,7 +165,8 @@
     min-width: 0;
   }
   .editor-toolbar {
-    padding: 8px 16px;
+    height: 41px;
+    padding: 0 16px;
     border-bottom: 1px solid var(--border);
     display: flex; align-items: center; gap: 8px;
     flex-shrink: 0;
@@ -188,6 +191,41 @@
   .save-btn:hover { background: var(--accent-hover); }
   .save-btn:disabled { opacity: 0.4; cursor: default; }
   .save-status { font-size: 11px; color: var(--text-muted); }
+
+  #preview-btn { padding-top: 5px; }
+
+  /* ── overflow menu ── */
+  .overflow-wrap { position: relative; }
+  .overflow-menu {
+    display: none;
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 4px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    min-width: 140px;
+    z-index: 50;
+    padding: 4px 0;
+  }
+  .overflow-menu.open { display: block; }
+  .overflow-menu button {
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: none;
+    border: none;
+    color: var(--text);
+    padding: 7px 12px;
+    font-size: 13px;
+    font-family: var(--font);
+    cursor: pointer;
+  }
+  .overflow-menu button:hover { background: var(--surface2); }
+  .overflow-menu button.danger { color: var(--danger); }
+  .overflow-menu button.danger:hover { background: rgba(224,92,92,0.1); }
 
   #editor {
     flex: 1;
@@ -376,12 +414,17 @@
   <div class="editor-panel">
     <div class="editor-toolbar">
       <button class="back-btn" onclick="mobileBack('notes')" title="Back to notes">← </button>
-      <input id="note-title-input" type="text" placeholder="Untitled" onchange="markDirty()" oninput="markDirty()" />
+      <input id="note-title-input" type="text" placeholder="Untitled" oninput="onEditorInput()" />
       <span class="save-status" id="save-status"></span>
-      <button class="save-btn" id="save-btn" onclick="saveNote()" disabled>Save</button>
-      <button class="save-btn" id="preview-btn" onclick="togglePreview()" style="background:var(--surface2)">Preview</button>
+      <button class="icon-btn" id="preview-btn" onclick="togglePreview()" title="Preview">&#x1F4D6;</button>
+      <div class="overflow-wrap" id="overflow-wrap" style="display:none">
+        <button class="icon-btn" onclick="toggleOverflow()" title="More">&#x22EF;</button>
+        <div class="overflow-menu" id="overflow-menu">
+          <button onclick="deleteNote();" class="danger">Delete note</button>
+        </div>
+      </div>
     </div>
-    <textarea id="editor" placeholder="Write in markdown…" onchange="markDirty()" oninput="markDirty()"></textarea>
+    <textarea id="editor" placeholder="Write in markdown…" oninput="onEditorInput()"></textarea>
     <div id="preview" style="display:none"></div>
   </div>
 </div>
@@ -780,13 +823,11 @@ function togglePreview() {
     preview.innerHTML = renderMarkdown(editor.value);
     editor.style.display = "none";
     preview.style.display = "block";
-    btn.style.background = "var(--accent)";
-    btn.textContent = "Edit";
+    btn.style.color = "var(--accent)";
   } else {
     editor.style.display = "block";
     preview.style.display = "none";
-    btn.style.background = "var(--surface2)";
-    btn.textContent = "Preview";
+    btn.style.color = "";
   }
 }
 
@@ -983,6 +1024,7 @@ async function selectNote(id) {
   if (previewMode) document.getElementById("preview").innerHTML = renderMarkdown(n.bodyMd);
   savedRevision = n.revision;
   clearDirty();
+  document.getElementById("overflow-wrap").style.display = "";
   if (isMobile()) mobileSetView("editor");
 }
 
@@ -1012,55 +1054,96 @@ async function newNote() {
   }, 300);
 }
 
-async function saveNote() {
-  if (!activeNoteId) return;
+// ── Auto-save ────────────────────────────────────────────────────────────
+let saveTimer = null;
+let saving = false;
+
+function onEditorInput() {
+  dirty = true;
+  document.getElementById("save-status").textContent = "";
+  if (saveTimer) clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => autoSave(), 1500);
+}
+
+async function autoSave() {
+  if (!activeNoteId || !dirty || saving) return;
+  saving = true;
   const title = document.getElementById("note-title-input").value.trim() || "Untitled";
   const body = document.getElementById("editor").value;
   const n = notes[activeNoteId];
-  if (!n) return;
+  if (!n) { saving = false; return; }
 
-  document.getElementById("save-btn").disabled = true;
-  document.getElementById("save-status").textContent = "Saving…";
+  document.getElementById("save-status").textContent = "Saving\u2026";
 
   try {
-    // Update body first (uses expectedRevision)
     await pokeAction({ "update-note": { notebookId: n.notebookId, noteId: activeNoteId, bodyMd: body, expectedRevision: savedRevision } });
     savedRevision++;
-    // Rename if title changed (after body update so revision is correct)
     if (title !== n.title) {
       await pokeAction({ "rename-note": { notebookId: n.notebookId, noteId: activeNoteId, title } });
     }
     notes[activeNoteId] = { ...n, title, bodyMd: body, revision: savedRevision };
-    clearDirty();
+    dirty = false;
     document.getElementById("save-status").textContent = "Saved";
-    setTimeout(() => { document.getElementById("save-status").textContent = ""; }, 2000);
+    setTimeout(() => { if (!dirty) document.getElementById("save-status").textContent = ""; }, 2000);
     renderNotesList();
   } catch(e) {
     document.getElementById("save-status").textContent = "Error saving";
-    document.getElementById("save-btn").disabled = false;
   }
+  saving = false;
+}
+
+// keep ctrl+s as a force-save
+async function saveNote() { if (saveTimer) clearTimeout(saveTimer); await autoSave(); }
+
+// ── Overflow menu ────────────────────────────────────────────────────────
+function toggleOverflow() {
+  document.getElementById("overflow-menu").classList.toggle("open");
+}
+
+function closeOverflow() {
+  document.getElementById("overflow-menu").classList.remove("open");
+}
+
+document.addEventListener("click", (e) => {
+  if (!e.target.closest(".overflow-wrap")) closeOverflow();
+});
+
+async function deleteNote() {
+  closeOverflow();
+  if (!activeNoteId || !activeNotebookId) return;
+  const n = notes[activeNoteId];
+  if (!n) return;
+  const title = n.title || "Untitled";
+  if (!confirm(`Delete "${title}"? This cannot be undone.`)) return;
+
+  await pokeAction({
+    "delete-note": { noteId: activeNoteId, notebookId: activeNotebookId }
+  });
+
+  delete notes[activeNoteId];
+  activeNoteId = null;
+  clearEditor();
+  renderNotesList();
+  if (isMobile()) mobileSetView("notes");
 }
 
 // ── Dirty state ──────────────────────────────────────────────────────────
-function markDirty() {
-  dirty = true;
-  document.getElementById("save-btn").disabled = false;
-  document.getElementById("save-status").textContent = "";
-}
-
 function clearDirty() {
   dirty = false;
-  document.getElementById("save-btn").disabled = true;
+  if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
 }
 
 async function confirmDirty() {
   if (!dirty) return true;
-  return confirm("You have unsaved changes. Discard them?");
+  // Try to save first
+  await autoSave();
+  return true;
 }
 
 function clearEditor() {
   document.getElementById("note-title-input").value = "";
   document.getElementById("editor").value = "";
+  document.getElementById("overflow-wrap").style.display = "none";
   clearDirty();
 }
 
