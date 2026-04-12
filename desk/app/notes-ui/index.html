@@ -458,9 +458,12 @@ async function connect() {
   const url = document.getElementById("ship-url-input").value.trim().replace(/\/$/, "");
   const code = document.getElementById("auth-input").value.trim();
   const errEl = document.getElementById("connect-error");
+  const panel = document.getElementById("connect-panel");
   errEl.textContent = "";
 
-  if (!url) { errEl.textContent = "Enter a URL"; return; }
+  function fail(msg) { errEl.textContent = msg; panel.style.display = ""; }
+
+  if (!url) { fail("Enter a URL"); return; }
   BASE_URL = url;
 
   // Optionally authenticate with +code
@@ -474,16 +477,16 @@ async function connect() {
       });
       if (!r.ok && r.status !== 204) throw new Error(`Login failed: ${r.status}`);
     } catch(e) {
-      errEl.textContent = e.message; return;
+      fail(e.message); return;
     }
   }
 
   // Get ship name
   try {
     const r = await fetch(`${BASE_URL}/~/scry/notes/notebooks.json`, { credentials: "include" });
-    if (r.status === 403) { errEl.textContent = "Auth failed — check your +code"; return; }
-    if (!r.ok && r.status !== 404) { errEl.textContent = `Cannot reach ship: ${r.status}`; return; }
-  } catch(e) { errEl.textContent = `Cannot reach ship: ${e.message}`; return; }
+    if (r.status === 403) { fail("Auth failed — check your +code"); return; }
+    if (!r.ok && r.status !== 404) { fail(`Cannot reach ship: ${r.status}`); return; }
+  } catch(e) { fail(`Cannot reach ship: ${e.message}`); return; }
 
   // Get own ship name
   try {
@@ -1245,16 +1248,15 @@ function esc(s) {
   return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 }
 
-// Auto-fill URL from current origin if served from ship
-if (location.hostname !== "" && location.hostname !== "localhost"
-    || location.port) {
-  document.getElementById("ship-url-input").value = location.origin;
-}
-
-// Auto-connect when served from a ship (any HTTP origin with a port)
+// Auto-connect when served from a ship
 if (location.protocol !== "file:" && location.hostname) {
+  // Hide connect panel immediately to avoid flash
+  document.getElementById("connect-panel").style.display = "none";
   document.getElementById("ship-url-input").value = location.origin;
-  connect();
+  connect().catch(() => {
+    // Show connect panel if auto-connect fails
+    document.getElementById("connect-panel").style.display = "";
+  });
 }
 
 </script>
