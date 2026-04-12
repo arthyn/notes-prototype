@@ -282,6 +282,54 @@
   ::-webkit-scrollbar { width: 4px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  /* ── back button (hidden on desktop) ── */
+  .back-btn {
+    display: none;
+    background: none; border: none; cursor: pointer;
+    color: var(--accent); font-size: 13px; font-family: var(--font);
+    padding: 2px 6px; margin-right: 4px; border-radius: 3px;
+  }
+  .back-btn:hover { background: var(--surface2); }
+
+  /* ── mobile responsive ── */
+  @media (max-width: 640px) {
+    .back-btn { display: inline-flex; align-items: center; }
+
+    .layout { position: relative; }
+    .sidebar, .notes-panel, .editor-panel {
+      position: absolute;
+      inset: 0;
+      width: 100% !important;
+      border: none !important;
+      transition: transform 0.2s ease;
+    }
+
+    /* Default: sidebar visible, others off-screen right */
+    .sidebar  { transform: translateX(0); z-index: 3; }
+    .notes-panel { transform: translateX(100%); z-index: 2; }
+    .editor-panel { transform: translateX(100%); z-index: 1; }
+
+    /* View: notes-list */
+    .layout[data-view="notes"] .sidebar { transform: translateX(-100%); }
+    .layout[data-view="notes"] .notes-panel { transform: translateX(0); }
+    .layout[data-view="notes"] .editor-panel { transform: translateX(100%); }
+
+    /* View: editor */
+    .layout[data-view="editor"] .sidebar { transform: translateX(-100%); }
+    .layout[data-view="editor"] .notes-panel { transform: translateX(-100%); }
+    .layout[data-view="editor"] .editor-panel { transform: translateX(0); }
+
+    header h1 { font-size: 14px; }
+    #ship-label { font-size: 11px; }
+
+    .editor-toolbar { flex-wrap: wrap; padding: 8px 10px; gap: 6px; }
+    #note-title-input { font-size: 15px; min-width: 0; }
+    #editor { padding: 14px 12px; font-size: 13px; }
+    #preview { padding: 14px 12px; }
+
+    .modal { width: calc(100vw - 32px); max-width: 320px; }
+  }
 </style>
 </head>
 <body>
@@ -317,6 +365,7 @@
   <!-- Notes list -->
   <div class="notes-panel">
     <div class="notes-panel-header">
+      <button class="back-btn" onclick="mobileBack('notebooks')" title="Back to notebooks">← </button>
       <span id="folder-label">Notes</span>
       <button class="icon-btn" title="New note" onclick="newNote()">＋</button>
     </div>
@@ -326,6 +375,7 @@
   <!-- Editor -->
   <div class="editor-panel">
     <div class="editor-toolbar">
+      <button class="back-btn" onclick="mobileBack('notes')" title="Back to notes">← </button>
       <input id="note-title-input" type="text" placeholder="Untitled" onchange="markDirty()" oninput="markDirty()" />
       <span class="save-status" id="save-status"></span>
       <button class="save-btn" id="save-btn" onclick="saveNote()" disabled>Save</button>
@@ -909,6 +959,7 @@ async function selectNotebook(id) {
   await loadFolders(id);
   await loadNotes(id, null);
   subscribeEvents();
+  if (isMobile()) mobileSetView("notes");
 }
 
 async function selectFolder(id) {
@@ -932,6 +983,7 @@ async function selectNote(id) {
   if (previewMode) document.getElementById("preview").innerHTML = renderMarkdown(n.bodyMd);
   savedRevision = n.revision;
   clearDirty();
+  if (isMobile()) mobileSetView("editor");
 }
 
 // ── Create / Save ─────────────────────────────────────────────────────────
@@ -1094,6 +1146,18 @@ document.addEventListener("keydown", e => {
     if (dirty) saveNote();
   }
 });
+
+// ── Mobile Navigation ────────────────────────────────────────────────────
+function isMobile() { return window.innerWidth <= 640; }
+
+function mobileSetView(view) {
+  document.querySelector(".layout").setAttribute("data-view", view);
+}
+
+function mobileBack(to) {
+  if (to === "notebooks") mobileSetView("notebooks");
+  else if (to === "notes") mobileSetView("notes");
+}
 
 // ── Util ──────────────────────────────────────────────────────────────────
 function esc(s) {
