@@ -29,9 +29,12 @@
     background: var(--bg);
     color: var(--text);
     height: 100vh;
+    height: 100dvh;
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    position: fixed;
+    inset: 0;
   }
 
   /* ── header ── */
@@ -83,7 +86,7 @@
     align-items: center;
     justify-content: space-between;
   }
-  .sidebar-list { flex: 1; overflow-y: auto; padding-bottom: 8px; }
+  .sidebar-list { flex: 1; overflow-y: auto; padding-bottom: 8px; min-height: 0; }
   .nb-item {
     display: flex;
     align-items: center;
@@ -102,7 +105,7 @@
   .nb-item .nb-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
   /* ── folder tree ── */
-  .folder-tree { overflow-y: auto; border-top: 1px solid var(--border); flex-shrink: 0; max-height: 40%; }
+  .folder-tree { overflow-y: auto; border-top: 1px solid var(--border); flex-shrink: 1; min-height: 0; max-height: 40%; }
   .folder-item {
     display: flex; align-items: center; gap: 4px;
     padding: 4px 10px 4px;
@@ -358,13 +361,27 @@
     .layout[data-view="editor"] .notes-panel { transform: translateX(-100%); }
     .layout[data-view="editor"] .editor-panel { transform: translateX(0); }
 
-    header h1 { font-size: 14px; }
-    #ship-label { font-size: 11px; }
+    header h1 { font-size: 16px; }
+    #ship-label { font-size: 12px; }
 
-    .editor-toolbar { flex-wrap: wrap; padding: 8px 10px; gap: 6px; }
-    #note-title-input { font-size: 15px; min-width: 0; }
-    #editor { padding: 14px 12px; font-size: 13px; }
-    #preview { padding: 14px 12px; }
+    .sidebar-section { font-size: 11px; height: 44px; padding: 0 12px; }
+    .nb-item { font-size: 16px; padding: 10px 12px; }
+    .nb-item .nb-icon { font-size: 18px; }
+    .folder-item { font-size: 14px; padding: 8px 12px; }
+
+    .notes-panel-header { height: 44px; font-size: 14px; padding: 0 12px; }
+    .note-row { padding: 14px 12px; }
+    .note-row .note-title { font-size: 16px; }
+    .note-row .note-meta { font-size: 13px; }
+    .empty-state { font-size: 14px; }
+
+    .editor-toolbar { height: 44px; padding: 0 10px; gap: 6px; }
+    #note-title-input { font-size: 17px; min-width: 0; }
+    #editor { padding: 16px 14px; font-size: 15px; line-height: 1.6; }
+    #preview { padding: 16px 14px; font-size: 15px; }
+
+    .sidebar { overflow-y: auto; }
+    .notes-panel { overflow-y: auto; }
 
     .modal { width: calc(100vw - 32px); max-width: 320px; }
   }
