@@ -1,0 +1,10 @@
+:~
+  title+'Notes'
+  info+'Collaborative markdown notebooks'
+  color+0x7c.6af7
+  site+/notes
+  base+'notes'
+  version+[0 1 0]
+  website+'https://github.com/arthyn/notes-prototype'
+  license+'MIT'
+==

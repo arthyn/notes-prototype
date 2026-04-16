@@ -27,7 +27,7 @@ Working name: **%scribe** (placeholder)
 ## v1 Scope
 
 ### Included
-- Notebook creation + membership + roles
+- Notebook creation + membership (join/leave)
 - Folder CRUD within a notebook
 - Note CRUD in folders
 - Plain Markdown editor + preview
@@ -35,6 +35,7 @@ Working name: **%scribe** (placeholder)
 - Wiki-links (`[[Note Name]]`) and standard links (`[text](path.md)`)
 - Backlinks index (derived)
 - Import/export of Markdown folder trees
+- Versioned v0 event/update streams
 
 ### Deferred (v2+)
 - Tags and tag views
@@ -48,9 +49,10 @@ Working name: **%scribe** (placeholder)
 ## User Model
 
 ### Actors
-- **Owner**: full control, manage roles, delete notebook
-- **Editor**: create/edit/move/delete folders and notes
-- **Viewer**: read-only
+- **Member**: can access notebook content after joining
+- **Creator**: creator metadata is retained for auditing
+
+> Note: role-based ACLs are deferred; v0 uses membership join/leave semantics.
 
 ### Core Objects
 - **Notebook**: shared space (channel-like)
@@ -117,59 +119,53 @@ Working name: **%scribe** (placeholder)
 
 ## Permissions & Auth
 
-- Every mutating action checks sender role against notebook ACL.
+- Every mutating action checks sender membership.
 - View actions (peek/watch) require membership.
-- Owner can grant/revoke editor/viewer roles.
+- Membership changes are `join` / `leave` actions.
 - Server-side validation for all paths and IDs.
 
 ---
 
 ## API Contract (agent surface)
 
+### v0 Contract Shape (ACUR)
+- `a-*`: client actions
+- `c-*`: server commands (includes actor)
+- `u-*`: canonical durable updates (append-only, sequenced)
+- `r-*`: client-facing responses
+
+Materialized state is derived from applying `u-*` updates; replay uses `since-seq`.
+
 ## Pokes (mutations)
-- `%create-notebook [title]`
-- `%rename-notebook [notebook-id title]`
-- `%invite-member [notebook-id ship role]`
-- `%remove-member [notebook-id ship]`
-- `%set-role [notebook-id ship role]`
+- `%notes-action` (client action envelope)
+- `%notes-command` (server command envelope, actor-attached)
 
-- `%create-folder [notebook-id parent-folder-id name]`
-- `%rename-folder [notebook-id folder-id name]`
-- `%move-folder [notebook-id folder-id new-parent-folder-id]`
-- `%delete-folder [notebook-id folder-id recursive=?]`
-
-- `%create-note [notebook-id folder-id title body-md]`
-- `%update-note [notebook-id note-id body-md expected-revision]`
-- `%rename-note [notebook-id note-id title]`
-- `%move-note [notebook-id note-id folder-id]`
-- `%delete-note [notebook-id note-id]`
-
-- `%reindex-links [notebook-id note-id?]`
-- `%import-markdown-tree [notebook-id tarball-or-structured-payload]`
+Action/command verbs (v0):
+- `create-notebook`, `rename-notebook`, `join`, `leave`
+- `create-folder`, `rename-folder`, `move-folder`, `delete-folder`
+- `create-note`, `update-note`, `rename-note`, `move-note`, `delete-note`
+- `import-markdown-tree`
 
 ## Peeks (queries)
-- `/notebooks`
-- `/notebook/<id>/tree`
-- `/notebook/<id>/folder/<id>`
-- `/notebook/<id>/note/<id>`
-- `/notebook/<id>/note/<id>/backlinks`
-- `/notebook/<id>/search?q=<term>`
+- `/v0/notebooks`
+- `/v0/notebook/<id>/tree`
+- `/v0/notebook/<id>/folder/<id>`
+- `/v0/notebook/<id>/note/<id>`
+- `/v0/updates/<notebook-id>/<since-seq>` (replay)
 
 ## Watches (subscriptions)
-- `/notebook/<id>/events` (high-level domain events)
-- `/notebook/<id>/tree` (structure updates)
-- `/notebook/<id>/note/<id>` (note updates)
+- `/v0/events/<notebook-id>` (high-level domain events)
+- `/v0/stream/<notebook-id>` (sequenced response/update stream)
 
 ---
 
 ## Event Model
 
 Emit typed events for UI sync:
-- `notebook-created`
-- `member-added|member-removed|role-changed`
-- `folder-created|renamed|moved|deleted`
-- `note-created|updated|renamed|moved|deleted`
-- `links-reindexed`
+- `notebook-created|notebook-renamed`
+- `member-joined|member-left`
+- `folder-created|folder-renamed|folder-moved|folder-deleted`
+- `note-created|note-updated|note-renamed|note-moved|note-deleted`
 
 Each event includes:
 - `notebook_id`
@@ -359,3 +355,119 @@ scribe/
 - AI writing/copilot features
 
 Keep v1 tight: **great writing + reliable shared Markdown notebooks**.
+
+---
+
+## v1.1 Extension: Knowledge Compiler Mode (Self-Contained)
+
+### Positioning
+`%notes` is both:
+1. **System of record** (raw sources, compiled synthesis, outputs)
+2. **Build system** (ingest → compile → lint → query → promote)
+
+Obsidian (or any Markdown client) is optional UI only.
+
+### Goals
+- Preserve the writing-first v1 UX
+- Enable Karpathy-style LLM knowledge workflows natively in `%notes`
+- Keep provenance, reproducibility, and quality controls explicit
+
+### Notebook Class
+Add notebook `mode`:
+- `human` (default): normal writing notebook
+- `knowledge`: compiler-oriented workflow with structured folders and jobs
+
+### Required Folder Contract (knowledge mode)
+Inside each `knowledge` notebook, maintain these top-level folders:
+- `00_raw/` — source captures (immutable by default)
+- `10_index/` — machine indexes/manifests
+- `20_compiled/` — synthesized concept/topic pages
+- `30_outputs/` — query artifacts (briefs/slides/reports)
+- `40_lint/` — integrity and quality reports
+
+### Metadata Contract (per note)
+Keep body as plain Markdown; track metadata in Gall state:
+- `kind`: `raw | index | compiled | output | lint`
+- `provenance`: list of source note IDs/paths + optional URL
+- `generated_by`: `human | llm:<model-id>`
+- `generated_at`
+- `compiler_run_id` (optional)
+- `confidence` (optional float 0..1)
+- `stale` (derived flag)
+
+### Immutable-by-Default Raw Layer
+For notes under `00_raw/`:
+- deny normal update/move/delete by compiler jobs
+- allow updates only via explicit ingest/reingest actions
+- permit human override with explicit force flag
+
+### Job Pipeline (first-class operations)
+Add long-running notebook jobs:
+1. `ingest` — add/update source material into `00_raw/`
+2. `compile` — produce/update synthesis in `20_compiled/` and indexes in `10_index/`
+3. `query` — generate artifacts in `30_outputs/`
+4. `lint` — run integrity checks and emit reports in `40_lint/`
+5. `promote` — merge selected `30_outputs/` artifacts into canonical `20_compiled/`
+
+### New Pokes (mutations)
+- `%set-notebook-mode [notebook-id mode]`
+- `%ingest-sources [notebook-id payload options]`
+- `%compile-notebook [notebook-id scope options]`
+- `%query-notebook [notebook-id prompt options]`
+- `%lint-notebook [notebook-id checks options]`
+- `%promote-output [notebook-id output-note-id target-path strategy]`
+- `%rebuild-compiled-page [notebook-id note-id options]`
+
+### New Peeks (queries)
+- `/notebook/<id>/mode`
+- `/notebook/<id>/jobs`
+- `/notebook/<id>/index/manifest`
+- `/notebook/<id>/lint/latest`
+- `/notebook/<id>/provenance/<noteId>`
+
+### New Watches (subscriptions)
+- `/notebook/<id>/jobs` (job progress/status)
+- `/notebook/<id>/lint` (new report events)
+- `/notebook/<id>/provenance` (source-link updates)
+
+### Knowledge Events
+Emit additional typed events:
+- `job-started|job-progress|job-completed|job-failed`
+- `sources-ingested`
+- `compiled-page-updated`
+- `output-generated`
+- `output-promoted`
+- `lint-report-generated`
+- `provenance-updated`
+
+### Lint Gate Set (minimum)
+- `unsourced-claims` — claims in compiled/output notes lacking provenance
+- `broken-links` — unresolved wiki/markdown links
+- `orphan-notes` — notes with zero in/out links (configurable)
+- `contradiction-candidates` — semantically conflicting statements
+- `stale-compiled` — compiled notes older than newest referenced raw source
+
+### Determinism + Reproducibility
+Each compile/query/lint run should persist a run manifest in `10_index/`:
+- job type, timestamp, model/tool versions, options
+- input note IDs/revisions
+- output note IDs/revisions
+- summary diff/changelog
+
+### Promotion Workflow
+Promotion is explicit (never implicit):
+- select output note from `30_outputs/`
+- choose target in `20_compiled/`
+- strategy: `replace | append | merge`
+- preserve provenance links and add promotion event
+
+### Compatibility Guarantee
+This extension **does not** change Markdown body fidelity:
+- notes remain plain `.md`
+- links preserved
+- metadata remains in Gall state (exportable via optional manifest)
+
+### Suggested Milestones (post-v1)
+- **M6:** notebook mode + folder contract + job framework
+- **M7:** compile/query jobs + provenance tracking
+- **M8:** lint suite + promotion workflow + run manifests

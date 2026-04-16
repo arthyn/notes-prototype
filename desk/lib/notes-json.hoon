@@ -60,7 +60,7 @@
     ?-  -.evt
         %notebook-created
       :~  ['type' s+'notebook-created']
-          ['notebookId' (numb notebook-id.evt)]
+          ['notebookId' (numb id.notebook.evt)]
           ['actor' s+(scot %p actor.evt)]
       ==
         %notebook-renamed
@@ -68,30 +68,22 @@
           ['notebookId' (numb notebook-id.evt)]
           ['actor' s+(scot %p actor.evt)]
       ==
-        %member-invited
-      :~  ['type' s+'member-invited']
-          ['notebookId' (numb notebook-id.evt)]
-          ['who' s+(scot %p who.evt)]
-          ['role' s+(scot %tas role.evt)]
-          ['actor' s+(scot %p actor.evt)]
-      ==
-        %member-removed
-      :~  ['type' s+'member-removed']
+        %member-joined
+      :~  ['type' s+'member-joined']
           ['notebookId' (numb notebook-id.evt)]
           ['who' s+(scot %p who.evt)]
           ['actor' s+(scot %p actor.evt)]
       ==
-        %role-changed
-      :~  ['type' s+'role-changed']
+        %member-left
+      :~  ['type' s+'member-left']
           ['notebookId' (numb notebook-id.evt)]
           ['who' s+(scot %p who.evt)]
-          ['role' s+(scot %tas role.evt)]
           ['actor' s+(scot %p actor.evt)]
       ==
         %folder-created
       :~  ['type' s+'folder-created']
-          ['folderId' (numb folder-id.evt)]
-          ['notebookId' (numb notebook-id.evt)]
+          ['folderId' (numb id.folder.evt)]
+          ['notebookId' (numb notebook-id.folder.evt)]
           ['actor' s+(scot %p actor.evt)]
       ==
         %folder-renamed
@@ -114,8 +106,8 @@
       ==
         %note-created
       :~  ['type' s+'note-created']
-          ['noteId' (numb note-id.evt)]
-          ['notebookId' (numb notebook-id.evt)]
+          ['noteId' (numb id.note.evt)]
+          ['notebookId' (numb notebook-id.note.evt)]
           ['actor' s+(scot %p actor.evt)]
       ==
         %note-renamed
@@ -139,10 +131,27 @@
       ==
         %note-updated
       :~  ['type' s+'note-updated']
-          ['noteId' (numb note-id.evt)]
-          ['notebookId' (numb notebook-id.evt)]
-          ['revision' (numb revision.evt)]
+          ['noteId' (numb id.note.evt)]
+          ['notebookId' (numb notebook-id.note.evt)]
+          ['revision' (numb revision.note.evt)]
           ['actor' s+(scot %p actor.evt)]
+      ==
+    ==
+  ::
+  ++  response
+    |=  res=response:notes
+    ^-  json
+    ?-  -.res
+        %update
+      %-  pairs
+      :~  ['response' s+'update']
+          ['update' (event u-notes.res)]
+      ==
+        %snapshot
+      %-  pairs
+      :~  ['response' s+'snapshot']
+          ['host' s+(scot %p ship.flag.res)]
+          ['flagName' s+name.flag.res]
       ==
     ==
   --
@@ -180,17 +189,13 @@
       :-  %rename-notebook
       ((ot ~[['notebookId' ni] ['title' so]]) val)
     ::
-        %'invite-member'
-      :-  %invite-member
-      ((ot ~[['notebookId' ni] ['who' (se %p)] ['role' role]]) val)
+        %'join'
+      :-  %join
+      ((ot ~[['notebookId' ni]]) val)
     ::
-        %'remove-member'
-      :-  %remove-member
-      ((ot ~[['notebookId' ni] ['who' (se %p)]]) val)
-    ::
-        %'set-role'
-      :-  %set-role
-      ((ot ~[['notebookId' ni] ['who' (se %p)] ['role' role]]) val)
+        %'leave'
+      :-  %leave
+      ((ot ~[['notebookId' ni]]) val)
     ::
         %'create-folder'
       :-  %create-folder
@@ -226,7 +231,7 @@
     ::
         %'update-note'
       :-  %update-note
-      ((ot ~[['noteId' ni] ['bodyMd' so] ['expectedRevision' ni]]) val)
+      ((ot ~[['notebookId' ni] ['noteId' ni] ['bodyMd' so] ['expectedRevision' ni]]) val)
     ::
         %'batch-import'
       :-  %batch-import
@@ -239,6 +244,16 @@
       :-  %batch-import-tree
       %.  val
       (ot ~[['notebookId' ni] ['parentFolderId' ni] ['tree' (ar import-node)]])
+    ::
+        %'join-remote'
+      :-  %join-remote
+      =/  raw  ((ot ~[['ship' (su ;~(pfix sig fed:ag))] ['name' so]]) val)
+      [-.raw +.raw]
+    ::
+        %'leave-remote'
+      :-  %leave-remote
+      =/  raw  ((ot ~[['ship' (su ;~(pfix sig fed:ag))] ['name' so]]) val)
+      [-.raw +.raw]
     ==
   ::
   ++  import-node

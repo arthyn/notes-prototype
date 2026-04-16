@@ -59,33 +59,38 @@ Mark: `notes-action` (JSON)
 {"batch-import": {"notebookId": 1, "folderId": 2, "notes": [{"title": "Note", "bodyMd": "..."}]}}
 ```
 
-### Scries (via `/~/scry/`)
+### Scries (via `/~/scry/notes/`)
 
 ```
-/notes/notebooks.json        — all notebooks
-/notes/folders/{nbId}.json   — folders in notebook
-/notes/notes/{nbId}.json     — notes in notebook
-/notes/note/{noteId}.json    — single note with body
+/v0/notebooks.json                  — all notebooks
+/v0/notebook/<ship>/<name>.json     — single notebook
+/v0/folders/<ship>/<name>.json      — folders in notebook
+/v0/notes/<ship>/<name>.json        — notes in notebook
+/v0/members/<ship>/<name>.json      — members of notebook
 ```
 
-### SSE Events
+### Subscriptions
 
-Subscribe to `/notes/events` for real-time updates:
+Subscribe to `/v0/notes/<ship>/<name>/stream` for real-time UI updates:
 - `notebook-created`, `notebook-renamed`
 - `folder-created`, `folder-renamed`, `folder-moved`, `folder-deleted`
 - `note-created`, `note-updated`, `note-renamed`, `note-moved`, `note-deleted`
-- `member-invited`, `member-removed`, `role-changed`
+- `member-joined`, `member-left`
+
+Remote subscribers watch `/v0/notes/<ship>/<name>/updates` for replication.
 
 ## Desk Structure
 
 ```
 app/notes.hoon           — Gall agent (eyre binding, HTTP handler, SSE)
 app/notes-ui/index.html  — source HTML for the UI
-sur/notes.hoon           — types (notebook, folder, note, action, event, state)
+sur/notes.hoon           — types (notebook, folder, note, a/c/u/r, state)
 lib/notes-json.hoon      — JSON encoding/decoding
 lib/notes-ui.hoon        — HTML as hex literal (Ford import workaround for kelvin 409)
-mar/notes/action.hoon    — action mark (noun + JSON grab)
-mar/notes/event.hoon     — event mark (noun grab, JSON grow)
+mar/notes-action.hoon    — local action mark
+mar/notes-command.hoon   — server command mark
+mar/notes-update.hoon    — canonical update mark
+mar/notes-response.hoon  — client response mark
 mar/json.hoon            — JSON mark with mime grow arm
 mar/html.hoon            — HTML mark
 desk.bill                — agent manifest
