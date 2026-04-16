@@ -77,6 +77,7 @@
 ::  helper core
 ::
 |_  [=bowl:gall cards=(list card)]
+++  dummy  'svg-icons-v1'
 ++  abet  [(flop cards) state]
 ++  cor   .
 ++  emit  |=(=card cor(cards [card cards]))
@@ -239,8 +240,8 @@
     ::  /x/ui — serve the frontend
       [%x %ui ~]
     ``html+!>(index)
-    ::  /x/notebooks — list all notebooks
-      [%x %notebooks ~]
+    ::  /x/v0/notebooks — list all notebooks
+      [%x %v0 %notebooks ~]
     =/  nbs=(list json)
       %+  murn  ~(tap by books.state)
       |=  [=flag:notes [=net:notes =notebook-state:notes]]
@@ -251,8 +252,8 @@
           ['notebook' (notebook:enjs:notes-json notebook.notebook-state)]
       ==
     ``json+!>([%a nbs])
-    ::  /x/notebook/<ship>/<name>
-      [%x %notebook ship=@ name=@ ~]
+    ::  /x/v0/notebook/<ship>/<name>
+      [%x %v0 %notebook ship=@ name=@ ~]
     =/  =flag:notes  [(slav %p ship.pole) name.pole]
     =/  entry=(unit [=net:notes =notebook-state:notes])
       (~(get by books.state) flag)
@@ -263,8 +264,8 @@
         ['flagName' s+name.flag]
         ['notebook' (notebook:enjs:notes-json notebook.notebook-state.u.entry)]
     ==
-    ::  /x/folders/<ship>/<name>
-      [%x %folders ship=@ name=@ ~]
+    ::  /x/v0/folders/<ship>/<name>
+      [%x %v0 %folders ship=@ name=@ ~]
     =/  =flag:notes  [(slav %p ship.pole) name.pole]
     =/  entry=(unit [=net:notes =notebook-state:notes])
       (~(get by books.state) flag)
@@ -274,8 +275,8 @@
       %+  turn  ~(val by folders.notebook-state.u.entry)
       folder:enjs:notes-json
     ``json+!>([%a flds])
-    ::  /x/notes/<ship>/<name>
-      [%x %notes ship=@ name=@ ~]
+    ::  /x/v0/notes/<ship>/<name>
+      [%x %v0 %notes ship=@ name=@ ~]
     =/  =flag:notes  [(slav %p ship.pole) name.pole]
     =/  entry=(unit [=net:notes =notebook-state:notes])
       (~(get by books.state) flag)
@@ -285,8 +286,8 @@
       %+  turn  ~(val by notes.notebook-state.u.entry)
       note:enjs:notes-json
     ``json+!>([%a nts])
-    ::  /x/note/<ship>/<name>/<id> — single note by ID
-      [%x %note ship=@ name=@ id=@ ~]
+    ::  /x/v0/note/<ship>/<name>/<id> — single note by ID
+      [%x %v0 %note ship=@ name=@ id=@ ~]
     =/  =flag:notes  [(slav %p ship.pole) name.pole]
     =/  entry=(unit [=net:notes =notebook-state:notes])
       (~(get by books.state) flag)
@@ -297,8 +298,8 @@
       (~(get by notes.notebook-state.u.entry) nid)
     ?~  nt  ``json+!>(~)
     ``json+!>((note:enjs:notes-json u.nt))
-    ::  /x/folder/<ship>/<name>/<id> — single folder by ID
-      [%x %folder ship=@ name=@ id=@ ~]
+    ::  /x/v0/folder/<ship>/<name>/<id> — single folder by ID
+      [%x %v0 %folder ship=@ name=@ id=@ ~]
     =/  =flag:notes  [(slav %p ship.pole) name.pole]
     =/  entry=(unit [=net:notes =notebook-state:notes])
       (~(get by books.state) flag)
@@ -309,8 +310,8 @@
       (~(get by folders.notebook-state.u.entry) fid)
     ?~  fld  ``json+!>(~)
     ``json+!>((folder:enjs:notes-json u.fld))
-    ::  /x/members/<ship>/<name>
-      [%x %members ship=@ name=@ ~]
+    ::  /x/v0/members/<ship>/<name>
+      [%x %v0 %members ship=@ name=@ ~]
     =/  =flag:notes  [(slav %p ship.pole) name.pole]
     =/  entry=(unit [=net:notes =notebook-state:notes])
       (~(get by books.state) flag)

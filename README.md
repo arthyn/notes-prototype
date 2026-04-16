@@ -59,24 +59,25 @@ Mark: `notes-action` (JSON)
 {"batch-import": {"notebookId": 1, "folderId": 2, "notes": [{"title": "Note", "bodyMd": "..."}]}}
 ```
 
-### Scries (via `/~/scry/`)
+### Scries (via `/~/scry/notes/`)
 
 ```
-/notes/notebooks.json        — all notebooks
-/notes/folders/{nbId}.json   — folders in notebook
-/notes/notes/{nbId}.json     — notes in notebook
-/notes/note/{noteId}.json    — single note with body
+/v0/notebooks.json                  — all notebooks
+/v0/notebook/<ship>/<name>.json     — single notebook
+/v0/folders/<ship>/<name>.json      — folders in notebook
+/v0/notes/<ship>/<name>.json        — notes in notebook
+/v0/members/<ship>/<name>.json      — members of notebook
 ```
 
-### SSE Events
+### Subscriptions
 
-Subscribe to `/notes/v0/events/{notebookId}` for real-time updates:
+Subscribe to `/v0/notes/<ship>/<name>/stream` for real-time UI updates:
 - `notebook-created`, `notebook-renamed`
 - `folder-created`, `folder-renamed`, `folder-moved`, `folder-deleted`
 - `note-created`, `note-updated`, `note-renamed`, `note-moved`, `note-deleted`
 - `member-joined`, `member-left`
 
-Replay updates from `/notes/v0/updates/{notebookId}/{sinceSeq}`.
+Remote subscribers watch `/v0/notes/<ship>/<name>/updates` for replication.
 
 ## Desk Structure
 

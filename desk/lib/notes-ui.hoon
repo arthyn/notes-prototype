@@ -29,9 +29,12 @@
     background: var(--bg);
     color: var(--text);
     height: 100vh;
+    height: 100dvh;
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    position: fixed;
+    inset: 0;
   }
 
   /* ── header ── */
@@ -72,7 +75,8 @@
     overflow: hidden;
   }
   .sidebar-section {
-    padding: 8px 8px 4px;
+    height: 41px;
+    padding: 0 8px;
     font-size: 10px;
     font-weight: 700;
     text-transform: uppercase;
@@ -82,7 +86,7 @@
     align-items: center;
     justify-content: space-between;
   }
-  .sidebar-list { flex: 1; overflow-y: auto; padding-bottom: 8px; }
+  .sidebar-list { flex: 1; overflow-y: auto; padding-bottom: 8px; min-height: 0; }
   .nb-item {
     display: flex;
     align-items: center;
@@ -97,35 +101,49 @@
   }
   .nb-item:hover { background: var(--surface2); }
   .nb-item.active { background: var(--accent); color: #fff; }
-  .nb-item .nb-icon { font-size: 14px; flex-shrink: 0; }
+  .nb-item .nb-icon { flex-shrink: 0; display: flex; align-items: center; }
   .nb-item .nb-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-  /* ── folder tree ── */
-  .folder-tree { overflow-y: auto; border-top: 1px solid var(--border); flex-shrink: 0; max-height: 40%; }
-  .folder-item {
-    display: flex; align-items: center; gap: 4px;
-    padding: 4px 10px 4px;
-    cursor: pointer; font-size: 12px;
-    border-radius: 4px; margin: 1px 4px;
-    transition: background 0.1s;
-    user-select: none;
+  /* ── sidebar bottom actions ── */
+  .sidebar-actions {
+    border-top: 1px solid var(--border);
+    padding: 4px;
+    flex-shrink: 0;
+    background: var(--surface);
   }
-  .folder-item:hover { background: var(--surface2); }
-  .folder-item.active { background: rgba(124,106,247,0.2); color: var(--accent); }
-  .folder-item .indent { display: inline-block; }
-  .folder-item .fold-icon { width: 14px; flex-shrink: 0; color: var(--text-muted); font-size: 10px; }
+  .sidebar-action {
+    display: flex; align-items: center; gap: 8px;
+    width: 100%;
+    background: none; border: none; cursor: pointer;
+    color: var(--text-muted);
+    font-size: 12px; font-family: var(--font);
+    padding: 6px 10px; border-radius: 4px;
+    text-align: left;
+  }
+  .sidebar-action:hover { background: var(--surface2); color: var(--text); }
+  .sidebar-action[disabled] { opacity: 0.4; cursor: default; }
+  .sidebar-action[disabled]:hover { background: none; color: var(--text-muted); }
+
+  /* ── SVG icons ── */
+  .icon {
+    width: 16px; height: 16px;
+    stroke: currentColor; fill: none;
+    stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round;
+    flex-shrink: 0;
+  }
 
   /* ── icon button ── */
   .icon-btn {
     background: none; border: none; cursor: pointer;
-    color: var(--text-muted); padding: 2px 4px; border-radius: 3px;
-    font-size: 14px; line-height: 1; transition: color 0.15s, background 0.15s;
+    color: var(--text-muted); padding: 4px; border-radius: 3px;
+    line-height: 1; transition: color 0.15s, background 0.15s;
+    display: inline-flex; align-items: center; justify-content: center;
   }
   .icon-btn:hover { color: var(--text); background: var(--surface2); }
 
   /* ── notes list panel ── */
   .notes-panel {
-    width: 240px;
+    width: 280px;
     flex-shrink: 0;
     border-right: 1px solid var(--border);
     display: flex;
@@ -133,26 +151,34 @@
     overflow: hidden;
   }
   .notes-panel-header {
-    padding: 10px 12px;
+    height: 41px;
+    padding: 0 12px;
     font-size: 12px;
     font-weight: 600;
     color: var(--text-muted);
     border-bottom: 1px solid var(--border);
-    display: flex; align-items: center; justify-content: space-between;
+    display: flex; align-items: center; gap: 6px;
     flex-shrink: 0;
   }
+  #folder-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .notes-list { flex: 1; overflow-y: auto; }
-  .note-row {
+  .item-row {
+    display: flex; align-items: center; gap: 10px;
     padding: 10px 12px;
     cursor: pointer;
     border-bottom: 1px solid var(--border);
     transition: background 0.1s;
   }
-  .note-row:hover { background: var(--surface2); }
-  .note-row.active { background: rgba(124,106,247,0.15); border-left: 2px solid var(--accent); }
-  .note-row .note-title { font-size: 13px; font-weight: 500; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .note-row .note-meta { font-size: 11px; color: var(--text-muted); }
+  .item-row:hover { background: var(--surface2); }
+  .item-row.active { background: rgba(124,106,247,0.15); border-left: 2px solid var(--accent); padding-left: 10px; }
+  .item-icon { flex-shrink: 0; opacity: 0.7; line-height: 1; display: flex; align-items: center; }
+  .item-body { flex: 1; min-width: 0; }
+  .item-title { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .item-meta { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+  .item-row.is-folder .item-title { font-weight: 500; }
   .empty-state { padding: 24px 12px; text-align: center; color: var(--text-muted); font-size: 12px; }
+  .folder-up-btn { color: var(--text-muted); }
+  .folder-up-btn:hover { color: var(--text); }
 
   /* ── editor ── */
   .editor-panel {
@@ -163,7 +189,8 @@
     min-width: 0;
   }
   .editor-toolbar {
-    padding: 8px 16px;
+    height: 41px;
+    padding: 0 16px;
     border-bottom: 1px solid var(--border);
     display: flex; align-items: center; gap: 8px;
     flex-shrink: 0;
@@ -188,6 +215,39 @@
   .save-btn:hover { background: var(--accent-hover); }
   .save-btn:disabled { opacity: 0.4; cursor: default; }
   .save-status { font-size: 11px; color: var(--text-muted); }
+
+  /* ── overflow menu ── */
+  .overflow-wrap { position: relative; }
+  .overflow-menu {
+    display: none;
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 4px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    min-width: 140px;
+    z-index: 50;
+    padding: 4px 0;
+  }
+  .overflow-menu.open { display: block; }
+  .overflow-menu button {
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: none;
+    border: none;
+    color: var(--text);
+    padding: 7px 12px;
+    font-size: 13px;
+    font-family: var(--font);
+    cursor: pointer;
+  }
+  .overflow-menu button:hover { background: var(--surface2); }
+  .overflow-menu button.danger { color: var(--danger); }
+  .overflow-menu button.danger:hover { background: rgba(224,92,92,0.1); }
 
   #editor {
     flex: 1;
@@ -282,13 +342,121 @@
   ::-webkit-scrollbar { width: 4px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  /* ── back button (hidden on desktop) ── */
+  .back-btn {
+    display: none;
+    background: none; border: none; cursor: pointer;
+    color: var(--accent); font-size: 13px; font-family: var(--font);
+    padding: 2px 6px; margin-right: 4px; border-radius: 3px;
+  }
+  .back-btn:hover { background: var(--surface2); }
+
+  /* ── mobile responsive ── */
+  @media (max-width: 640px) {
+    .back-btn { display: inline-flex; align-items: center; }
+
+    .layout { position: relative; }
+    .sidebar, .notes-panel, .editor-panel {
+      position: absolute;
+      inset: 0;
+      width: 100% !important;
+      border: none !important;
+      transition: transform 0.2s ease;
+    }
+
+    /* Default: sidebar visible, others off-screen right */
+    .sidebar  { transform: translateX(0); z-index: 3; }
+    .notes-panel { transform: translateX(100%); z-index: 2; }
+    .editor-panel { transform: translateX(100%); z-index: 1; }
+
+    /* View: notes-list */
+    .layout[data-view="notes"] .sidebar { transform: translateX(-100%); }
+    .layout[data-view="notes"] .notes-panel { transform: translateX(0); }
+    .layout[data-view="notes"] .editor-panel { transform: translateX(100%); }
+
+    /* View: editor */
+    .layout[data-view="editor"] .sidebar { transform: translateX(-100%); }
+    .layout[data-view="editor"] .notes-panel { transform: translateX(-100%); }
+    .layout[data-view="editor"] .editor-panel { transform: translateX(0); }
+
+    header h1 { font-size: 16px; }
+    #ship-label { font-size: 12px; }
+
+    .sidebar-section { font-size: 11px; height: 44px; padding: 0 12px; }
+    .nb-item { font-size: 16px; padding: 10px 12px; }
+    .nb-item .nb-icon .icon { width: 18px; height: 18px; }
+    .sidebar-action { font-size: 14px; padding: 10px 12px; gap: 10px; }
+
+    .notes-panel-header { height: 44px; font-size: 14px; padding: 0 12px; }
+    .item-row { padding: 14px 12px; gap: 12px; }
+    .item-icon .icon { width: 18px; height: 18px; }
+    .item-title { font-size: 16px; }
+    .item-meta { font-size: 13px; }
+    .empty-state { font-size: 14px; }
+
+    .editor-toolbar { height: 44px; padding: 0 10px; gap: 6px; }
+    #note-title-input { font-size: 17px; min-width: 0; }
+    #editor { padding: 16px 14px; font-size: 15px; line-height: 1.6; }
+    #preview { padding: 16px 14px; font-size: 15px; }
+
+    .sidebar { overflow-y: auto; }
+    .notes-panel { overflow-y: auto; }
+
+    .modal { width: calc(100vw - 32px); max-width: 320px; }
+  }
 </style>
 </head>
 <body>
 
+<!-- SVG icon sprite -->
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+  <symbol id="i-notebook" viewBox="0 0 16 16">
+    <rect x="3" y="1.5" width="10" height="13" rx="1.5"/>
+    <line x1="6" y1="1.5" x2="6" y2="14.5"/>
+  </symbol>
+  <symbol id="i-folder" viewBox="0 0 16 16">
+    <path d="M1.5 4a1 1 0 011-1H6l1.5 1.5H13.5a1 1 0 011 1V12a1 1 0 01-1 1h-11a1 1 0 01-1-1z"/>
+  </symbol>
+  <symbol id="i-doc" viewBox="0 0 16 16">
+    <path d="M9.5 1.5H5a1 1 0 00-1 1v11a1 1 0 001 1h6a1 1 0 001-1V4z"/>
+    <polyline points="9.5,1.5 9.5,4 12,4"/>
+  </symbol>
+  <symbol id="i-folder-plus" viewBox="0 0 16 16">
+    <path d="M1.5 4a1 1 0 011-1H6l1.5 1.5H13.5a1 1 0 011 1V12a1 1 0 01-1 1h-11a1 1 0 01-1-1z"/>
+    <line x1="8" y1="7" x2="8" y2="11"/><line x1="6" y1="9" x2="10" y2="9"/>
+  </symbol>
+  <symbol id="i-doc-plus" viewBox="0 0 16 16">
+    <path d="M9.5 1.5H5a1 1 0 00-1 1v11a1 1 0 001 1h6a1 1 0 001-1V4z"/>
+    <polyline points="9.5,1.5 9.5,4 12,4"/>
+    <line x1="8" y1="7.5" x2="8" y2="11.5"/><line x1="6" y1="9.5" x2="10" y2="9.5"/>
+  </symbol>
+  <symbol id="i-plus" viewBox="0 0 16 16">
+    <line x1="8" y1="3.5" x2="8" y2="12.5"/><line x1="3.5" y1="8" x2="12.5" y2="8"/>
+  </symbol>
+  <symbol id="i-arrow-up" viewBox="0 0 16 16">
+    <line x1="8" y1="13" x2="8" y2="3"/><polyline points="4,7 8,3 12,7"/>
+  </symbol>
+  <symbol id="i-download" viewBox="0 0 16 16">
+    <line x1="8" y1="2" x2="8" y2="10"/><polyline points="5,7 8,10 11,7"/>
+    <path d="M3 13h10"/>
+  </symbol>
+  <symbol id="i-folder-down" viewBox="0 0 16 16">
+    <path d="M1.5 4a1 1 0 011-1H6l1.5 1.5H13.5a1 1 0 011 1V12a1 1 0 01-1 1h-11a1 1 0 01-1-1z"/>
+    <line x1="8" y1="6.5" x2="8" y2="10.5"/><polyline points="6,9 8,11 10,9"/>
+  </symbol>
+  <symbol id="i-eye" viewBox="0 0 16 16">
+    <path d="M1.5 8s2.5-4 6.5-4 6.5 4 6.5 4-2.5 4-6.5 4S1.5 8 1.5 8z"/>
+    <circle cx="8" cy="8" r="2"/>
+  </symbol>
+  <symbol id="i-ellipsis" viewBox="0 0 16 16" fill="currentColor" stroke="none">
+    <circle cx="4" cy="8" r="1.2"/><circle cx="8" cy="8" r="1.2"/><circle cx="12" cy="8" r="1.2"/>
+  </symbol>
+</svg>
+
 <!-- Connect panel (shown until URL + auth set) -->
 <div id="connect-panel">
-  <h2>📓 Notes</h2>
+  <h2><svg class="icon" style="width:20px;height:20px;vertical-align:-3px;margin-right:4px"><use href="#i-notebook"/></svg>Notes</h2>
   <p>Enter your ship URL to connect</p>
   <input id="ship-url-input" type="text" placeholder="http://localhost:8080" autocomplete="off" />
   <input id="auth-input" type="password" placeholder="+code (or leave blank if already logged in)" autocomplete="off" />
@@ -298,27 +466,32 @@
 
 <header>
   <div id="status-dot"></div>
-  <h1>📓 Notes</h1>
+  <h1><svg class="icon" style="width:18px;height:18px;vertical-align:-3px;margin-right:4px"><use href="#i-notebook"/></svg>Notes</h1>
   <span id="ship-label"></span>
 </header>
 
 <div class="layout">
-  <!-- Sidebar: notebooks -->
+  <!-- Sidebar: notebooks + import actions -->
   <div class="sidebar">
     <div class="sidebar-section">
       Notebooks
-      <button class="icon-btn" title="New notebook" onclick="openModal(&quot;new-notebook&quot;)">＋</button>
+      <button class="icon-btn" title="New notebook" onclick="openModal(&quot;new-notebook&quot;)"><svg class="icon"><use href="#i-plus"/></svg></button>
     </div>
     <div class="sidebar-list" id="notebooks-list"></div>
-    <!-- Folder tree for selected notebook -->
-    <div class="folder-tree" id="folder-tree"></div>
+    <div class="sidebar-actions">
+      <button class="sidebar-action" id="import-files-btn" onclick="triggerImport(false)"><svg class="icon"><use href="#i-download"/></svg> Import files</button>
+      <button class="sidebar-action" id="import-folder-btn" onclick="triggerImport(true)"><svg class="icon"><use href="#i-folder-down"/></svg> Import folder</button>
+    </div>
   </div>
 
-  <!-- Notes list -->
+  <!-- Folders + Notes interleaved -->
   <div class="notes-panel">
     <div class="notes-panel-header">
+      <button class="back-btn" onclick="mobileBack('notebooks')" title="Back to notebooks">← </button>
+      <button class="icon-btn folder-up-btn" id="folder-up-btn" onclick="folderUp()" style="display:none" title="Up one folder"><svg class="icon"><use href="#i-arrow-up"/></svg></button>
       <span id="folder-label">Notes</span>
-      <button class="icon-btn" title="New note" onclick="newNote()">＋</button>
+      <button class="icon-btn" id="new-folder-btn" title="New folder" onclick="openModal('new-folder')" style="display:none"><svg class="icon"><use href="#i-folder-plus"/></svg></button>
+      <button class="icon-btn" id="new-note-btn" title="New note" onclick="newNote()" style="display:none"><svg class="icon"><use href="#i-doc-plus"/></svg></button>
     </div>
     <div class="notes-list" id="notes-list"></div>
   </div>
@@ -326,12 +499,18 @@
   <!-- Editor -->
   <div class="editor-panel">
     <div class="editor-toolbar">
-      <input id="note-title-input" type="text" placeholder="Untitled" onchange="markDirty()" oninput="markDirty()" />
+      <button class="back-btn" onclick="mobileBack('notes')" title="Back to notes">← </button>
+      <input id="note-title-input" type="text" placeholder="Untitled" oninput="onEditorInput()" />
       <span class="save-status" id="save-status"></span>
-      <button class="save-btn" id="save-btn" onclick="saveNote()" disabled>Save</button>
-      <button class="save-btn" id="preview-btn" onclick="togglePreview()" style="background:var(--surface2)">Preview</button>
+      <button class="icon-btn" id="preview-btn" onclick="togglePreview()" title="Preview"><svg class="icon"><use href="#i-eye"/></svg></button>
+      <div class="overflow-wrap" id="overflow-wrap" style="display:none">
+        <button class="icon-btn" onclick="toggleOverflow()" title="More"><svg class="icon"><use href="#i-ellipsis"/></svg></button>
+        <div class="overflow-menu" id="overflow-menu">
+          <button onclick="deleteNote();" class="danger">Delete note</button>
+        </div>
+      </div>
     </div>
-    <textarea id="editor" placeholder="Write in markdown…" onchange="markDirty()" oninput="markDirty()"></textarea>
+    <textarea id="editor" placeholder="Write in markdown…" oninput="onEditorInput()"></textarea>
     <div id="preview" style="display:none"></div>
   </div>
 </div>
@@ -367,9 +546,12 @@ async function connect() {
   const url = document.getElementById("ship-url-input").value.trim().replace(/\/$/, "");
   const code = document.getElementById("auth-input").value.trim();
   const errEl = document.getElementById("connect-error");
+  const panel = document.getElementById("connect-panel");
   errEl.textContent = "";
 
-  if (!url) { errEl.textContent = "Enter a URL"; return; }
+  function fail(msg) { errEl.textContent = msg; panel.style.display = ""; }
+
+  if (!url) { fail("Enter a URL"); return; }
   BASE_URL = url;
 
   // Optionally authenticate with +code
@@ -383,16 +565,16 @@ async function connect() {
       });
       if (!r.ok && r.status !== 204) throw new Error(`Login failed: ${r.status}`);
     } catch(e) {
-      errEl.textContent = e.message; return;
+      fail(e.message); return;
     }
   }
 
   // Get ship name
   try {
-    const r = await fetch(`${BASE_URL}/~/scry/notes/notebooks.json`, { credentials: "include" });
-    if (r.status === 403) { errEl.textContent = "Auth failed — check your +code"; return; }
-    if (!r.ok && r.status !== 404) { errEl.textContent = `Cannot reach ship: ${r.status}`; return; }
-  } catch(e) { errEl.textContent = `Cannot reach ship: ${e.message}`; return; }
+    const r = await fetch(`${BASE_URL}/~/scry/notes/v0/notebooks.json`, { credentials: "include" });
+    if (r.status === 403) { fail("Auth failed — check your +code"); return; }
+    if (!r.ok && r.status !== 404) { fail(`Cannot reach ship: ${r.status}`); return; }
+  } catch(e) { fail(`Cannot reach ship: ${e.message}`); return; }
 
   // Get own ship name
   try {
@@ -498,7 +680,7 @@ function handleEvent(msg) {
     if (type === "notebook-created" || type === "notebook-renamed") loadNotebooks();
     else if (type?.startsWith("folder-")) loadFolders(activeNotebookId);
     else if (type?.startsWith("note-")) {
-      loadNotes(activeNotebookId, activeFolderId);
+      loadNotes(activeNotebookId);
       // If the note we are editing was updated remotely
       if (type === "note-updated" && evt.noteId === activeNoteId && !dirty) {
         loadNote(activeNoteId);
@@ -512,7 +694,7 @@ function handleEvent(msg) {
   if (type === "notebook-created" || type === "notebook-renamed") loadNotebooks();
   else if (type?.startsWith("folder-")) loadFolders(activeNotebookId);
   else if (type?.startsWith("note-")) {
-    loadNotes(activeNotebookId, activeFolderId);
+    loadNotes(activeNotebookId);
     if (type === "note-updated" && data.noteId === activeNoteId && !dirty) {
       loadNote(activeNoteId);
     }
@@ -521,7 +703,7 @@ function handleEvent(msg) {
 
 // ── Load Data ─────────────────────────────────────────────────────────────
 async function loadNotebooks() {
-  const data = await scry("/notebooks");
+  const data = await scry("/v0/notebooks");
   if (!data) return;
   notebooks = {};
   (data || []).forEach(entry => {
@@ -536,27 +718,34 @@ async function loadNotebooks() {
 
 async function loadFolders(notebookId) {
   if (!activeNotebookFlag) return;
-  const data = await scry(`/folders/${activeNotebookFlag}`);
+  const data = await scry(`/v0/folders/${activeNotebookFlag}`);
   folders = {};
   (data || []).forEach(f => folders[f.id] = f);
-  renderFolderTree();
+  // Default to root folder if no valid folder is selected
+  if (!activeFolderId || !folders[activeFolderId]) {
+    const rootFolder = Object.values(folders).find(f => f.name === "/");
+    activeFolderId = rootFolder ? rootFolder.id : null;
+  }
+  renderItems();
 }
 
-async function loadNotes(notebookId, folderId) {
+async function loadNotes(notebookId) {
   if (!activeNotebookFlag) return;
-  const data = await scry(`/notes/${activeNotebookFlag}`);
+  const data = await scry(`/v0/notes/${activeNotebookFlag}`);
   notes = {};
-  (data || []).forEach(n => {
-    // filter by folder client-side if specified
-    if (!folderId || n.folderId === folderId) notes[n.id] = n;
-  });
-  renderNotesList();
+  (data || []).forEach(n => notes[n.id] = n);
+  renderItems();
+}
+
+function rootFolderId() {
+  const root = Object.values(folders).find(f => f.name === "/");
+  return root ? root.id : null;
 }
 
 async function loadNote(noteId) {
   // reload all notes to get fresh data, then update editor if needed
   if (!activeNotebookFlag) return;
-  const data = await scry(`/notes/${activeNotebookFlag}`);
+  const data = await scry(`/v0/notes/${activeNotebookFlag}`);
   if (!data) return;
   (data || []).forEach(n => notes[n.id] = n);
   const n = notes[noteId];
@@ -576,67 +765,101 @@ function renderNotebooks() {
   Object.values(notebooks).sort((a,b) => a.title.localeCompare(b.title)).forEach(nb => {
     const div = document.createElement("div");
     div.className = "nb-item" + (nb.id === activeNotebookId ? " active" : "");
-    div.innerHTML = `<span class="nb-icon">📓</span><span class="nb-name">${esc(nb.title)}</span>`;
+    div.innerHTML = `<span class="nb-icon">${icon('notebook')}</span><span class="nb-name">${esc(nb.title)}</span>`;
     div.onclick = () => selectNotebook(nb.id);
     el.appendChild(div);
   });
 }
 
-function renderFolderTree() {
-  const el = document.getElementById("folder-tree");
+function updateHeader() {
+  const labelEl = document.getElementById("folder-label");
+  const upBtn = document.getElementById("folder-up-btn");
+  const newFolderBtn = document.getElementById("new-folder-btn");
+  const newNoteBtn = document.getElementById("new-note-btn");
+  if (!activeNotebookId) {
+    labelEl.textContent = "Notes";
+    upBtn.style.display = "none";
+    newFolderBtn.style.display = "none";
+    newNoteBtn.style.display = "none";
+    return;
+  }
+  newFolderBtn.style.display = "";
+  newNoteBtn.style.display = "";
+  const rootId = rootFolderId();
+  const isAtRoot = !activeFolderId || activeFolderId === rootId;
+  if (isAtRoot) {
+    labelEl.textContent = notebooks[activeNotebookId]?.title || "Notes";
+    upBtn.style.display = "none";
+  } else {
+    labelEl.textContent = folders[activeFolderId]?.name || "Folder";
+    upBtn.style.display = "";
+  }
+}
+
+function renderItems() {
+  updateHeader();
+  const el = document.getElementById("notes-list");
   el.innerHTML = "";
-  if (!activeNotebookId) return;
+  if (!activeNotebookId || !activeFolderId) return;
 
-  // Build tree - find root "/" folder id so children of "/" appear at top level
-  const rootFolder = Object.values(folders).find(f => f.name === "/");
-  const rootId = rootFolder ? rootFolder.id : null;
-  const allFolders = Object.values(folders).filter(f => f.name !== "/");
-  const roots = allFolders.filter(f => !f.parentFolderId || f.parentFolderId === rootId);
+  const subfolders = Object.values(folders)
+    .filter(f => f.parentFolderId === activeFolderId && f.name !== "/")
+    .sort((a,b) => a.name.localeCompare(b.name));
 
-  function renderFolder(f, depth) {
-    const div = document.createElement("div");
-    div.className = "folder-item" + (f.id === activeFolderId ? " active" : "");
-    const children = allFolders.filter(c => c.parentFolderId === f.id);
-    div.innerHTML = `
-      <span class="indent" style="width:${depth*12}px"></span>
-      <span class="fold-icon">${children.length ? "▾" : "·"}</span>
-      📁 ${esc(f.name)}
-    `;
-    div.onclick = (e) => { e.stopPropagation(); selectFolder(f.id); };
-    el.appendChild(div);
-    children.sort((a,b) => a.name.localeCompare(b.name)).forEach(c => renderFolder(c, depth+1));
+  const notesHere = Object.values(notes)
+    .filter(n => n.folderId === activeFolderId)
+    .sort((a,b) => b.updatedAt - a.updatedAt);
+
+  if (!subfolders.length && !notesHere.length) {
+    el.innerHTML = "<div class=\"empty-state\">Empty folder</div>";
+    return;
   }
 
-  // "All notes" entry
-  const all = document.createElement("div");
-  all.className = "folder-item" + (!activeFolderId ? " active" : "");
-  all.innerHTML = `<span class="fold-icon">·</span> All Notes`;
-  all.onclick = () => selectFolder(null);
-  el.appendChild(all);
+  subfolders.forEach(f => {
+    const div = document.createElement("div");
+    div.className = "item-row is-folder";
+    div.innerHTML = `
+      <span class="item-icon">${icon('folder')}</span>
+      <div class="item-body">
+        <div class="item-title">${esc(f.name)}</div>
+      </div>
+    `;
+    div.onclick = () => navigateToFolder(f.id);
+    el.appendChild(div);
+  });
 
-  roots.sort((a,b) => a.name.localeCompare(b.name)).forEach(f => renderFolder(f, 1));
+  notesHere.forEach(n => {
+    const div = document.createElement("div");
+    div.className = "item-row is-note" + (n.id === activeNoteId ? " active" : "");
+    const d = new Date(n.updatedAt * 1000);
+    const dateStr = d.toLocaleDateString(undefined, { month:"short", day:"numeric" });
+    div.innerHTML = `
+      <span class="item-icon">${icon('doc')}</span>
+      <div class="item-body">
+        <div class="item-title">${esc(n.title)}</div>
+        <div class="item-meta">${dateStr} · rev ${n.revision}</div>
+      </div>
+    `;
+    div.onclick = () => selectNote(n.id);
+    el.appendChild(div);
+  });
+}
 
-  // New folder button
-  const newDiv = document.createElement("div");
-  newDiv.className = "folder-item";
-  newDiv.style.color = "var(--text-muted)";
-  newDiv.innerHTML = `<span class="fold-icon">＋</span> New folder`;
-  newDiv.onclick = () => openModal("new-folder");
-  el.appendChild(newDiv);
+async function navigateToFolder(id) {
+  if (!await confirmDirty()) return;
+  activeFolderId = id;
+  activeNoteId = null;
+  clearEditor();
+  renderItems();
+}
 
-  const importDiv = document.createElement("div");
-  importDiv.className = "folder-item";
-  importDiv.style.color = "var(--text-muted)";
-  importDiv.innerHTML = `<span class="fold-icon">📥</span> Import files`;
-  importDiv.onclick = () => triggerImport(false);
-  el.appendChild(importDiv);
-
-  const importTreeDiv = document.createElement("div");
-  importTreeDiv.className = "folder-item";
-  importTreeDiv.style.color = "var(--text-muted)";
-  importTreeDiv.innerHTML = `<span class="fold-icon">📂</span> Import folder`;
-  importTreeDiv.onclick = () => triggerImport(true);
-  el.appendChild(importTreeDiv);
+async function folderUp() {
+  if (!activeFolderId) return;
+  const f = folders[activeFolderId];
+  if (!f) return;
+  const rootId = rootFolderId();
+  if (activeFolderId === rootId) return;
+  await navigateToFolder(f.parentFolderId || rootId);
 }
 
 // ── Import ────────────────────────────────────────────────────────────────
@@ -708,7 +931,7 @@ function triggerImport(isFolder) {
 
     setTimeout(async () => {
       await loadFolders(activeNotebookId);
-      await loadNotes(activeNotebookId, activeFolderId);
+      await loadNotes(activeNotebookId);
       document.getElementById("save-status").textContent = "Imported " + mdFiles.length + " notes";
       setTimeout(() => { document.getElementById("save-status").textContent = ""; }, 3000);
     }, 500);
@@ -730,13 +953,11 @@ function togglePreview() {
     preview.innerHTML = renderMarkdown(editor.value);
     editor.style.display = "none";
     preview.style.display = "block";
-    btn.style.background = "var(--accent)";
-    btn.textContent = "Edit";
+    btn.style.color = "var(--accent)";
   } else {
     editor.style.display = "block";
     preview.style.display = "none";
-    btn.style.background = "var(--surface2)";
-    btn.textContent = "Preview";
+    btn.style.color = "";
   }
 }
 
@@ -872,143 +1093,145 @@ function inline(s) {
   return s;
 }
 
-function renderNotesList() {
-  const el = document.getElementById("notes-list");
-  el.innerHTML = "";
-  const sorted = Object.values(notes).sort((a,b) => b.updatedAt - a.updatedAt);
-  if (!sorted.length) {
-    el.innerHTML = "<div class=\"empty-state\">No notes here yet</div>";
-    return;
-  }
-  sorted.forEach(n => {
-    const div = document.createElement("div");
-    div.className = "note-row" + (n.id === activeNoteId ? " active" : "");
-    const d = new Date(n.updatedAt * 1000);
-    const dateStr = d.toLocaleDateString(undefined, { month:"short", day:"numeric" });
-    div.innerHTML = `
-      <div class="note-title">${esc(n.title)}</div>
-      <div class="note-meta">${dateStr} · rev ${n.revision}</div>
-    `;
-    div.onclick = () => selectNote(n.id);
-    el.appendChild(div);
-  });
-}
-
 // ── Selection ─────────────────────────────────────────────────────────────
 async function selectNotebook(id) {
   if (!await confirmDirty()) return;
   activeNotebookId = id;
   const nb = notebooks[id];
   activeNotebookFlag = nb ? nb.flag : null;
-  activeFolderId = null;
+  activeFolderId = null;  // loadFolders will set this to root folder id
   activeNoteId = null;
   clearEditor();
   renderNotebooks();
-  document.getElementById("folder-label").textContent =
-    notebooks[id]?.title || "Notes";
   await loadFolders(id);
-  await loadNotes(id, null);
+  await loadNotes(id);
   subscribeEvents();
-}
-
-async function selectFolder(id) {
-  if (!await confirmDirty()) return;
-  activeFolderId = id;
-  activeNoteId = null;
-  clearEditor();
-  renderFolderTree();
-  document.getElementById("folder-label").textContent =
-    id ? (folders[id]?.name || "Folder") : "All Notes";
-  await loadNotes(activeNotebookId, id);
+  if (isMobile()) mobileSetView("notes");
 }
 
 async function selectNote(id) {
   if (!await confirmDirty()) return;
   activeNoteId = id;
-  renderNotesList();
+  renderItems();
   const n = notes[id];
   document.getElementById("note-title-input").value = n.title;
   document.getElementById("editor").value = n.bodyMd;
   if (previewMode) document.getElementById("preview").innerHTML = renderMarkdown(n.bodyMd);
   savedRevision = n.revision;
   clearDirty();
+  document.getElementById("overflow-wrap").style.display = "";
+  if (isMobile()) mobileSetView("editor");
 }
 
 // ── Create / Save ─────────────────────────────────────────────────────────
 async function newNote() {
   if (!activeNotebookId) { alert("Select a notebook first"); return; }
+  if (!activeFolderId) { alert("No folder selected"); return; }
   if (!await confirmDirty()) return;
 
-  // Find or use root folder
-  let folderId = activeFolderId;
-  if (!folderId) {
-    // Use first available folder (root)
-    const rootFolder = Object.values(folders).find(f => f.name === "/");
-    if (rootFolder) folderId = rootFolder.id;
-    else { alert("No folders found — create a folder first"); return; }
-  }
-
   await pokeAction({
-    "create-note": { notebookId: activeNotebookId, folderId, title: "Untitled", bodyMd: "" }
+    "create-note": { notebookId: activeNotebookId, folderId: activeFolderId, title: "Untitled", bodyMd: "" }
   });
 
   // Reload and select the newest note
   setTimeout(async () => {
-    await loadNotes(activeNotebookId, activeFolderId);
-    const newest = Object.values(notes).sort((a,b) => b.id - a.id)[0];
+    await loadNotes(activeNotebookId);
+    const inFolder = Object.values(notes).filter(n => n.folderId === activeFolderId);
+    const newest = inFolder.sort((a,b) => b.id - a.id)[0];
     if (newest) selectNote(newest.id);
   }, 300);
 }
 
-async function saveNote() {
-  if (!activeNoteId) return;
+// ── Auto-save ────────────────────────────────────────────────────────────
+let saveTimer = null;
+let saving = false;
+
+function onEditorInput() {
+  dirty = true;
+  document.getElementById("save-status").textContent = "";
+  if (saveTimer) clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => autoSave(), 1500);
+}
+
+async function autoSave() {
+  if (!activeNoteId || !dirty || saving) return;
+  saving = true;
   const title = document.getElementById("note-title-input").value.trim() || "Untitled";
   const body = document.getElementById("editor").value;
   const n = notes[activeNoteId];
-  if (!n) return;
+  if (!n) { saving = false; return; }
 
-  document.getElementById("save-btn").disabled = true;
-  document.getElementById("save-status").textContent = "Saving…";
+  document.getElementById("save-status").textContent = "Saving\u2026";
 
   try {
-    // Update body first (uses expectedRevision)
     await pokeAction({ "update-note": { notebookId: n.notebookId, noteId: activeNoteId, bodyMd: body, expectedRevision: savedRevision } });
     savedRevision++;
-    // Rename if title changed (after body update so revision is correct)
     if (title !== n.title) {
       await pokeAction({ "rename-note": { notebookId: n.notebookId, noteId: activeNoteId, title } });
     }
     notes[activeNoteId] = { ...n, title, bodyMd: body, revision: savedRevision };
-    clearDirty();
+    dirty = false;
     document.getElementById("save-status").textContent = "Saved";
-    setTimeout(() => { document.getElementById("save-status").textContent = ""; }, 2000);
-    renderNotesList();
+    setTimeout(() => { if (!dirty) document.getElementById("save-status").textContent = ""; }, 2000);
+    renderItems();
   } catch(e) {
     document.getElementById("save-status").textContent = "Error saving";
-    document.getElementById("save-btn").disabled = false;
   }
+  saving = false;
+}
+
+// keep ctrl+s as a force-save
+async function saveNote() { if (saveTimer) clearTimeout(saveTimer); await autoSave(); }
+
+// ── Overflow menu ────────────────────────────────────────────────────────
+function toggleOverflow() {
+  document.getElementById("overflow-menu").classList.toggle("open");
+}
+
+function closeOverflow() {
+  document.getElementById("overflow-menu").classList.remove("open");
+}
+
+document.addEventListener("click", (e) => {
+  if (!e.target.closest(".overflow-wrap")) closeOverflow();
+});
+
+async function deleteNote() {
+  closeOverflow();
+  if (!activeNoteId || !activeNotebookId) return;
+  const n = notes[activeNoteId];
+  if (!n) return;
+  const title = n.title || "Untitled";
+  if (!confirm(`Delete "${title}"? This cannot be undone.`)) return;
+
+  await pokeAction({
+    "delete-note": { noteId: activeNoteId, notebookId: activeNotebookId }
+  });
+
+  delete notes[activeNoteId];
+  activeNoteId = null;
+  clearEditor();
+  renderItems();
+  if (isMobile()) mobileSetView("notes");
 }
 
 // ── Dirty state ──────────────────────────────────────────────────────────
-function markDirty() {
-  dirty = true;
-  document.getElementById("save-btn").disabled = false;
-  document.getElementById("save-status").textContent = "";
-}
-
 function clearDirty() {
   dirty = false;
-  document.getElementById("save-btn").disabled = true;
+  if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
 }
 
 async function confirmDirty() {
   if (!dirty) return true;
-  return confirm("You have unsaved changes. Discard them?");
+  // Try to save first
+  await autoSave();
+  return true;
 }
 
 function clearEditor() {
   document.getElementById("note-title-input").value = "";
   document.getElementById("editor").value = "";
+  document.getElementById("overflow-wrap").style.display = "none";
   clearDirty();
 }
 
@@ -1029,15 +1252,17 @@ function openModal(type) {
     box.querySelector("#m-title").addEventListener("keydown", e => { if (e.key==="Enter") createNotebook(); });
   } else if (type === "new-folder") {
     if (!activeNotebookId) { alert("Select a notebook first"); return; }
+    const rootId = rootFolderId();
+    const isAtRoot = !activeFolderId || activeFolderId === rootId;
     const folderOpts = Object.values(folders)
       .filter(f => f.name !== "/")
-      .map(f => `<option value="${f.id}">${esc(f.name)}</option>`)
+      .map(f => `<option value="${f.id}"${f.id === activeFolderId ? " selected" : ""}>${esc(f.name)}</option>`)
       .join("");
     box.innerHTML = `
       <h3>New Folder</h3>
       <input id="m-name" type="text" placeholder="Folder name" autofocus />
       <select id="m-parent">
-        <option value="">Root level</option>
+        <option value=""${isAtRoot ? " selected" : ""}>Root level</option>
         ${folderOpts}
       </select>
       <div class="modal-actions">
@@ -1095,21 +1320,35 @@ document.addEventListener("keydown", e => {
   }
 });
 
+// ── Mobile Navigation ────────────────────────────────────────────────────
+function isMobile() { return window.innerWidth <= 640; }
+
+function mobileSetView(view) {
+  document.querySelector(".layout").setAttribute("data-view", view);
+}
+
+function mobileBack(to) {
+  if (to === "notebooks") mobileSetView("notebooks");
+  else if (to === "notes") mobileSetView("notes");
+}
+
 // ── Util ──────────────────────────────────────────────────────────────────
 function esc(s) {
   return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 }
-
-// Auto-fill URL from current origin if served from ship
-if (location.hostname !== "" && location.hostname !== "localhost"
-    || location.port) {
-  document.getElementById("ship-url-input").value = location.origin;
+function icon(id) {
+  return `<svg class="icon"><use href="#i-${id}"/></svg>`;
 }
 
-// Auto-connect when served from a ship (any HTTP origin with a port)
+// Auto-connect when served from a ship
 if (location.protocol !== "file:" && location.hostname) {
+  // Hide connect panel immediately to avoid flash
+  document.getElementById("connect-panel").style.display = "none";
   document.getElementById("ship-url-input").value = location.origin;
-  connect();
+  connect().catch(() => {
+    // Show connect panel if auto-connect fails
+    document.getElementById("connect-panel").style.display = "";
+  });
 }
 
 </script>

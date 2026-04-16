@@ -84,28 +84,28 @@ impl UrbitClient {
 
     /// Get all notebooks visible to this ship
     pub async fn get_notebooks(&self) -> Result<Vec<NotebookEntry>, UrbitError> {
-        let val = self.scry("/notebooks").await?;
+        let val = self.scry("/v0/notebooks").await?;
         let entries: Vec<NotebookEntry> = serde_json::from_value(val)?;
         Ok(entries)
     }
 
     /// Get all folders in a notebook (flag = "~ship/name")
     pub async fn get_folders(&self, flag: &str) -> Result<Vec<Folder>, UrbitError> {
-        let val = self.scry(&format!("/folders/{}", flag)).await?;
+        let val = self.scry(&format!("/v0/folders/{}", flag)).await?;
         let folders: Vec<Folder> = serde_json::from_value(val)?;
         Ok(folders)
     }
 
     /// Get all notes in a notebook (flag = "~ship/name")
     pub async fn get_notes(&self, flag: &str) -> Result<Vec<Note>, UrbitError> {
-        let val = self.scry(&format!("/notes/{}", flag)).await?;
+        let val = self.scry(&format!("/v0/notes/{}", flag)).await?;
         let notes: Vec<Note> = serde_json::from_value(val)?;
         Ok(notes)
     }
 
     /// Get a single note by ID
     pub async fn get_note(&self, flag: &str, note_id: u64) -> Result<Option<Note>, UrbitError> {
-        let val = self.scry(&format!("/note/{}/{}", flag, note_id)).await?;
+        let val = self.scry(&format!("/v0/note/{}/{}", flag, note_id)).await?;
         if val.is_null() {
             return Ok(None);
         }
@@ -120,7 +120,7 @@ impl UrbitClient {
         folder_id: u64,
     ) -> Result<Option<Folder>, UrbitError> {
         let val = self
-            .scry(&format!("/folder/{}/{}", flag, folder_id))
+            .scry(&format!("/v0/folder/{}/{}", flag, folder_id))
             .await?;
         if val.is_null() {
             return Ok(None);
