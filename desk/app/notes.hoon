@@ -6,7 +6,7 @@
 ::
 |%
 +$  card  card:agent:gall
-+$  current-state  state-1:notes
++$  current-state  state-2:notes
 --
 ::
 =|  current-state
@@ -77,7 +77,7 @@
 ::  helper core
 ::
 |_  [=bowl:gall cards=(list card)]
-++  dummy  'routed-action-v1'
+++  dummy  'dot-right-v1'
 ++  abet  [(flop cards) state]
 ++  cor   .
 ++  emit  |=(=card cor(cards [card cards]))
@@ -98,10 +98,15 @@
     ?:  ?=(^ raw)
       ;;(@ -.raw)
     0
-  ::  state-1: already current format, load directly
-  ?:  =(tag %1)
+  ::  state-2: current format
+  ?:  =(tag %2)
     =/  s=current-state  !<(current-state old)
     =.  state  s
+    cor
+  ::  state-1: migrate by adding empty published map
+  ?:  =(tag %1)
+    =/  s=state-1:notes  !<(state-1:notes old)
+    =.  state  [%2 books.s next-id.s ~]
     cor
   ::  state-0 or unknown: start fresh
   ::  acceptable during this migration; task says single-player breakage is ok
@@ -113,7 +118,20 @@
   ?+  mark  ~|(bad-mark+mark !!)
       %handle-http-request
     =/  req  !<([eyre-id=@ta =inbound-request:eyre] vase)
-    =/  data=octs  [(met 3 index) index]
+    =/  url=@t  url.request.inbound-request.req
+    =/  url-tape=tape  (trip url)
+    ::  check if this is a published note request: /notes/pub/{note-id}
+    =/  pub-html=(unit @t)
+      ?.  =("/notes/pub/" (scag 11 url-tape))  ~
+      =/  id-tape=tape  (slag 11 url-tape)
+      =/  nid=@ud  (fall (rush (crip id-tape) dem) 0)
+      ?:  =(0 nid)  ~
+      (~(get by published.state) nid)
+    ::  serve published note or the UI
+    =/  data=octs
+      ?^  pub-html
+        [(met 3 u.pub-html) u.pub-html]
+      [(met 3 index) index]
     =/  headers=(list [key=@t value=@t])
       :~  ['content-type' 'text/html']
       ==
@@ -135,6 +153,13 @@
       (join-remote flag.act)
     ?:  ?=(%leave-remote -.act)
       (leave-remote flag.act)
+    ::  publish/unpublish are local-only, not forwarded to remote hosts
+    ?:  ?=(%publish-note -.act)
+      =.  published.state  (~(put by published.state) note-id.act html.act)
+      cor
+    ?:  ?=(%unpublish-note -.act)
+      =.  published.state  (~(del by published.state) note-id.act)
+      cor
     ::  use explicit flag from _flag field if present,
     ::  otherwise fall back to notebook-id lookup
     =/  =flag:notes
@@ -329,6 +354,12 @@
           ['role' s+(scot %tas r)]
       ==
     ``json+!>([%a mlist])
+    ::  /x/v0/published — list of published note IDs
+      [%x %v0 %published ~]
+    =/  ids=(list json)
+      %+  turn  ~(tap in ~(key by published.state))
+      numb:enjs:format
+    ``json+!>([%a ids])
   ==
 ::
 ++  agent
@@ -410,6 +441,8 @@
       %update-note          notebook-id.act
       %batch-import         notebook-id.act
       %batch-import-tree    notebook-id.act
+      %publish-note         notebook-id.act
+      %unpublish-note       notebook-id.act
   ==
 ::
 ::  +command-notebook-id: extract notebook id from command
@@ -458,6 +491,8 @@
       %update-note          [%update-note notebook-id.act note-id.act body-md.act expected-revision.act actor]
       %batch-import         [%batch-import notebook-id.act folder-id.act notes.act actor]
       %batch-import-tree    [%batch-import-tree notebook-id.act parent-folder-id.act tree.act actor]
+      %publish-note         !!
+      %unpublish-note       !!
   ==
 ::
 ::  ====  se-core: server/host core  ====

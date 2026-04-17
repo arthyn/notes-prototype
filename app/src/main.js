@@ -30,9 +30,25 @@ const notebookList = document.getElementById("notebook-list");
 const saveNotebooksBtn = document.getElementById("save-notebooks-btn");
 
 // ── View switching ───────────────────────────────────────────────────────────
+const viewIds = { [statusView?.id]: statusView, [settingsView?.id]: settingsView, [conflictsView?.id]: conflictsView };
+
 function showView(view) {
   [statusView, settingsView, conflictsView].forEach(v => v.classList.remove("active"));
   view.classList.add("active");
+  localStorage.setItem("lastView", view.id);
+}
+
+// Restore last view after first status poll
+let viewRestored = false;
+function restoreView() {
+  if (viewRestored) return;
+  viewRestored = true;
+  if (!connected) return; // settings shown by updateConnectionUI
+  const lastId = localStorage.getItem("lastView");
+  if (lastId && viewIds[lastId]) {
+    [statusView, settingsView, conflictsView].forEach(v => v.classList.remove("active"));
+    viewIds[lastId].classList.add("active");
+  }
 }
 
 document.getElementById("settings-btn").addEventListener("click", () => {
@@ -175,6 +191,7 @@ async function pollStatus() {
     const status = await invoke("get_status");
     connected = status.connected;
     updateConnectionUI();
+    restoreView();
 
     if (status.ship) shipName.textContent = status.ship;
     if (status.last_sync) {

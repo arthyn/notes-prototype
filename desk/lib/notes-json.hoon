@@ -282,6 +282,14 @@
       :-  %leave-remote
       =/  raw  ((ot ~[['ship' (su ;~(pfix sig fed:ag))] ['name' so]]) val)
       [-.raw +.raw]
+    ::
+        %'publish-note'
+      :-  %publish-note
+      ((ot ~[['notebookId' ni] ['noteId' ni] ['html' so]]) val)
+    ::
+        %'unpublish-note'
+      :-  %unpublish-note
+      ((ot ~[['notebookId' ni] ['noteId' ni]]) val)
     ==
   ::
   ++  import-node
