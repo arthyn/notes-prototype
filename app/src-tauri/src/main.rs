@@ -9,7 +9,7 @@ mod urbit;
 use std::sync::Arc;
 use tauri::{
     tray::{MouseButton, MouseButtonState, TrayIconEvent},
-    Manager,
+    Emitter, Manager,
 };
 use tokio::sync::RwLock;
 
@@ -33,6 +33,30 @@ fn main() {
         .plugin(tauri_plugin_shell::init())
         .setup(|app| {
             let engine = Arc::new(RwLock::new(SyncEngine::new()));
+
+            // Set up activity event relay: buffer + emit to frontend
+            {
+                let app_handle = app.handle().clone();
+                let engine_for_relay = engine.clone();
+                tauri::async_runtime::spawn(async move {
+                    let (rx, log) = {
+                        let mut e = engine_for_relay.write().await;
+                        (e.take_activity_rx(), e.activity_log.clone())
+                    };
+                    if let Some(mut rx) = rx {
+                        while let Some(msg) = rx.recv().await {
+                            // Buffer for polling
+                            if let Ok(mut l) = log.lock() {
+                                l.push(msg.clone());
+                                if l.len() > 50 { l.remove(0); }
+                            }
+                            // Emit to any open windows
+                            let _ = app_handle.emit("sync-activity", &msg);
+                        }
+                    }
+                });
+            }
+
             app.manage(AppState {
                 engine: engine.clone(),
             });
@@ -103,6 +127,7 @@ fn main() {
             commands::disconnect,
             commands::get_notebooks,
             commands::select_notebooks,
+            commands::get_activity,
         ])
         .run(tauri::generate_context!())
         .expect("error while running application");
@@ -129,6 +154,7 @@ fn toggle_popover(app: &tauri::AppHandle, x: f64, y: f64) {
         .inner_size(320.0, 480.0)
         .resizable(false)
         .decorations(false)
+        .transparent(true)
         .always_on_top(true)
         .visible(true)
         .build()

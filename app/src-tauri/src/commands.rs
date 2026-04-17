@@ -123,6 +123,13 @@ pub async fn get_notebooks(state: State<'_, AppState>) -> Result<Vec<NotebookInf
 }
 
 #[tauri::command]
+pub async fn get_activity(state: State<'_, AppState>) -> Result<Vec<String>, String> {
+    let engine = state.engine.read().await;
+    let log = engine.activity_log.lock().map_err(|e| e.to_string())?;
+    Ok(log.clone())
+}
+
+#[tauri::command]
 pub async fn select_notebooks(
     flags: Vec<String>,
     state: State<'_, AppState>,

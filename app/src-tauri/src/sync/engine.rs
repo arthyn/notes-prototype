@@ -25,10 +25,14 @@ pub struct SyncEngine {
     connected: bool,
     sse_task: Option<tokio::task::JoinHandle<()>>,
     fs_task: Option<tokio::task::JoinHandle<()>>,
+    activity_tx: mpsc::Sender<String>,
+    activity_rx: Option<mpsc::Receiver<String>>,
+    pub activity_log: Arc<std::sync::Mutex<Vec<String>>>,
 }
 
 impl SyncEngine {
     pub fn new() -> Self {
+        let (activity_tx, activity_rx) = mpsc::channel::<String>(64);
         Self {
             config: AppConfig::load(),
             client: None,
@@ -38,7 +42,15 @@ impl SyncEngine {
             connected: false,
             sse_task: None,
             fs_task: None,
+            activity_tx,
+            activity_rx: Some(activity_rx),
+            activity_log: Arc::new(std::sync::Mutex::new(Vec::new())),
         }
+    }
+
+    /// Take the activity receiver (call once to set up the event relay)
+    pub fn take_activity_rx(&mut self) -> Option<mpsc::Receiver<String>> {
+        self.activity_rx.take()
     }
 
     pub fn is_connected(&self) -> bool {
@@ -161,6 +173,7 @@ impl SyncEngine {
         let state = self.state.clone();
         let ship_for_loop = ship.clone();
         let url_for_loop = self.config.ship_url.clone();
+        let activity_tx = self.activity_tx.clone();
 
         let fs_handle = tokio::spawn(async move {
             run_sync_loop(
@@ -171,11 +184,13 @@ impl SyncEngine {
                 &url_for_loop,
                 http_client,
                 sync_root,
+                activity_tx,
             )
             .await;
         });
         self.fs_task = Some(fs_handle);
 
+        let _ = self.activity_tx.send("Sync started".to_string()).await;
         info!("Sync started");
         Ok(())
     }
@@ -288,6 +303,7 @@ async fn run_sync_loop(
     base_url: &str,
     http_client: reqwest::Client,
     sync_root: PathBuf,
+    activity: mpsc::Sender<String>,
 ) {
     // Create a dedicated channel for pokes from the FS watcher side
     let mut poke_channel = EyreChannel::new(base_url, http_client.clone());
@@ -309,8 +325,10 @@ async fn run_sync_loop(
                 match msg {
                     Some(SseMessage::Response(Response::Snapshot { host, flag_name })) => {
                         info!("Received snapshot for {}/{}", host, flag_name);
+                        let _ = activity.send(format!("Connected to {}/{}", host, flag_name)).await;
                     }
                     Some(SseMessage::Response(Response::Update { update })) => {
+                        let event_desc = describe_event(&update);
                         let notebook_id = event_notebook_id(&update);
                         let flag = {
                             let s = state.read().await;
@@ -324,11 +342,12 @@ async fn run_sync_loop(
                             match ship_to_local::apply_event(&update, &flag, &sync_root, &mut s) {
                                 Ok(written_paths) => {
                                     if !written_paths.is_empty() {
-                                        info!("Ship->local wrote {} paths", written_paths.len());
+                                        let _ = activity.send(format!("\u{2193} {}", event_desc)).await;
                                     }
                                 }
                                 Err(e) => {
                                     error!("Failed to apply ship event: {}", e);
+                                    let _ = activity.send(format!("Error: {}", e)).await;
                                 }
                             }
                         } else {
@@ -365,6 +384,13 @@ async fn run_sync_loop(
                 }
                 recently_poked.insert(path, now);
 
+                let filename = match &change {
+                    FsChange::FileModified(p) | FsChange::FileCreated(p) |
+                    FsChange::FileDeleted(p) => p.file_name().map(|f| f.to_string_lossy().to_string()),
+                    FsChange::FileRenamed { to, .. } => to.file_name().map(|f| f.to_string_lossy().to_string()),
+                    _ => None,
+                };
+
                 let mut s = state.write().await;
                 match local_to_ship::handle_fs_change(
                     &change,
@@ -374,9 +400,20 @@ async fn run_sync_loop(
                     &scry_client,
                     ship,
                 ).await {
-                    Ok(_suppress) => {}
+                    Ok(_suppress) => {
+                        if let Some(name) = filename {
+                            let verb = match &change {
+                                FsChange::FileModified(_) | FsChange::FileCreated(_) => "Updated",
+                                FsChange::FileDeleted(_) => "Deleted",
+                                FsChange::FileRenamed { .. } => "Renamed",
+                                _ => "Synced",
+                            };
+                            let _ = activity.send(format!("\u{2191} {} {}", verb, name)).await;
+                        }
+                    }
                     Err(e) => {
                         error!("Failed to push local change to ship: {}", e);
+                        let _ = activity.send(format!("Error: {}", e)).await;
                     }
                 }
             }
@@ -408,6 +445,25 @@ fn event_notebook_id(event: &Event) -> u64 {
         Event::NoteMoved { notebook_id, .. } => *notebook_id,
         Event::NoteDeleted { notebook_id, .. } => *notebook_id,
         Event::NoteUpdated { notebook_id, .. } => *notebook_id,
+    }
+}
+
+/// Human-readable description of an SSE event
+fn describe_event(event: &Event) -> String {
+    match event {
+        Event::NoteCreated { note, .. } => format!("Created {}", note.title),
+        Event::NoteUpdated { note, .. } => format!("Updated {}", note.title),
+        Event::NoteRenamed { title, .. } => format!("Renamed to {}", title),
+        Event::NoteDeleted { .. } => "Deleted note".to_string(),
+        Event::NoteMoved { .. } => "Moved note".to_string(),
+        Event::FolderCreated { folder, .. } => format!("Created folder {}", folder.name),
+        Event::FolderRenamed { name, .. } => format!("Renamed folder to {}", name),
+        Event::FolderDeleted { .. } => "Deleted folder".to_string(),
+        Event::FolderMoved { .. } => "Moved folder".to_string(),
+        Event::NotebookCreated { notebook, .. } => format!("Created notebook {}", notebook.title),
+        Event::NotebookRenamed { title, .. } => format!("Renamed notebook to {}", title),
+        Event::MemberJoined { who, .. } => format!("{} joined", who),
+        Event::MemberLeft { who, .. } => format!("{} left", who),
     }
 }
 

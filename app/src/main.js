@@ -35,7 +35,11 @@ function showView(view) {
   view.classList.add("active");
 }
 
-document.getElementById("settings-btn").addEventListener("click", () => showView(settingsView));
+document.getElementById("settings-btn").addEventListener("click", () => {
+  showView(settingsView);
+  // Show back button only when connected (so they can get back to status)
+  document.getElementById("back-btn").classList.toggle("hidden", !connected);
+});
 document.getElementById("back-btn").addEventListener("click", () => showView(statusView));
 document.getElementById("conflicts-back-btn").addEventListener("click", () => showView(statusView));
 document.getElementById("show-conflicts-btn").addEventListener("click", () => showView(conflictsView));
@@ -109,6 +113,8 @@ function updateConnectionUI() {
     statusDot.className = "dot connected";
     statusText.textContent = "Connected";
     shipInfo.classList.remove("hidden");
+    // Switch to status view when connected
+    showView(statusView);
   } else {
     connectBtn.classList.remove("hidden");
     connectBtn.disabled = false;
@@ -117,6 +123,9 @@ function updateConnectionUI() {
     statusDot.className = "dot disconnected";
     statusText.textContent = "Disconnected";
     shipInfo.classList.add("hidden");
+    // Show settings when not connected
+    showView(settingsView);
+    document.getElementById("back-btn").classList.add("hidden");
   }
 }
 
@@ -217,7 +226,22 @@ listen("sync-conflict", (event) => {
   pollStatus();
 });
 
+// ── Load activity from backend ───────────────────────────────────────────────
+async function loadActivity() {
+  try {
+    const items = await invoke("get_activity");
+    if (items.length > 0) {
+      activityLog = items.map(msg => {
+        const now = new Date();
+        return { time: now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }), msg };
+      }).reverse();
+      renderActivity();
+    }
+  } catch {}
+}
+
 // ── Init ─────────────────────────────────────────────────────────────────────
 loadConfig();
 pollStatus();
-setInterval(pollStatus, 5000);
+loadActivity();
+setInterval(() => { pollStatus(); loadActivity(); }, 5000);
