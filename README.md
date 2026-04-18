@@ -34,11 +34,23 @@ The roadmap in [SPEC.md](SPEC.md#editor--ui-roadmap) tracks planned polish and f
 
 Requires a running Urbit ship on kelvin 409/410.
 
+### From source
+
+This repo only tracks files unique to `%notes`. The `%base` helpers we import (`default-agent`, `dbug`, `verb`, plus standard mars) and the docket types are vendored from upstream via [peru](https://github.com/buildinspace/peru) and are pinned in `peru.yaml`. After cloning, fetch them with:
+
+```sh
+./scripts/sync-deps.sh
+```
+
+This requires `peru` on your PATH (`pip install peru` or `brew install peru`). The script drops the pinned files into `desk/lib`, `desk/mar`, and `desk/sur`; they are gitignored so they never end up in a commit.
+
+### Install onto a ship
+
 ```
 |merge %notes our %base
 ```
 
-Copy the desk contents into your `%notes` desk, then:
+Rsync the desk contents into your ship's mounted `%notes` desk, then:
 
 ```
 |commit %notes

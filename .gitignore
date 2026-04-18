@@ -1,1 +1,22 @@
 .DS_Store
+
+# Vendored desk dependencies — fetched by scripts/sync-deps.sh
+desk/lib/dbug.hoon
+desk/lib/default-agent.hoon
+desk/lib/docket.hoon
+desk/lib/server.hoon
+desk/lib/skeleton.hoon
+desk/lib/verb.hoon
+desk/mar/bill.hoon
+desk/mar/docket-0.hoon
+desk/mar/hoon.hoon
+desk/mar/htm.hoon
+desk/mar/kelvin.hoon
+desk/mar/mime.hoon
+desk/mar/noun.hoon
+desk/sur/docket.hoon
+desk/sur/verb.hoon
+
+# peru state
+/.peru/
+/peru.lock

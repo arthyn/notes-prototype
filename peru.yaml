@@ -1,0 +1,39 @@
+# peru.yaml — vendor desk dependencies from upstream Urbit projects.
+# Run `./scripts/sync-deps.sh` after cloning to populate desk/lib,
+# desk/mar, desk/sur with these files. They are gitignored and not
+# checked into this repo so upstream versions stay pinned but out of
+# our commit history.
+
+imports:
+  base: desk/
+  landscape: desk/
+
+# %base libraries we import (default-agent, dbug, verb) plus the
+# standard marks and helpers a live desk needs for compilation.
+git module base:
+  url: https://github.com/urbit/urbit.git
+  rev: 409k-2
+  pick:
+    - pkg/base-dev/lib/dbug.hoon
+    - pkg/base-dev/lib/default-agent.hoon
+    - pkg/base-dev/lib/server.hoon
+    - pkg/base-dev/lib/skeleton.hoon
+    - pkg/base-dev/lib/verb.hoon
+    - pkg/base-dev/mar/bill.hoon
+    - pkg/base-dev/mar/hoon.hoon
+    - pkg/base-dev/mar/htm.hoon
+    - pkg/base-dev/mar/kelvin.hoon
+    - pkg/base-dev/mar/mime.hoon
+    - pkg/base-dev/mar/noun.hoon
+    - pkg/base-dev/sur/verb.hoon
+  export: pkg/base-dev
+
+# Docket types + marks, needed to parse desk.docket-0.
+git module landscape:
+  url: https://github.com/tloncorp/landscape.git
+  rev: v1.31.1
+  pick:
+    - desk/lib/docket.hoon
+    - desk/mar/docket-0.hoon
+    - desk/sur/docket.hoon
+  export: desk
