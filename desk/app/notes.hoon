@@ -77,7 +77,7 @@
 ::  helper core
 ::
 |_  [=bowl:gall cards=(list card)]
-++  dummy  'cmd-opt-n-shortcut-v1'
+++  dummy  'hide-sidebar-collapse-btn-mobile-v1'
 ++  abet  [(flop cards) state]
 ++  cor   .
 ++  emit  |=(=card cor(cards [card cards]))
