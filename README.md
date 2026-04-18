@@ -2,7 +2,7 @@
 
 A prototype Urbit-native writing app. Shared notebooks with plain Markdown, folder organization, and a built-in editor UI served directly from the agent.
 
-**Spec:** [SPEC.md](SPEC.md) (working name in spec: *%scribe*)
+**Spec:** [SPEC.md](SPEC.md)
 
 ## What it does
 

@@ -7,7 +7,7 @@ Build a Urbit-native writing app with:
 - folder-first organization (tags later)
 - clean, focused writing UX
 
-Working name: **%scribe** (placeholder)
+Agent name: **%notes**
 
 ---
 
@@ -246,33 +246,33 @@ This keeps behavior predictable until real-time co-editing lands.
 ## Desk Structure (proposed)
 
 ```
-scribe/
+notes/
   desk.bill
   desk.docket-0
   sys.kelvin
   app/
-    scribe.hoon
+    notes.hoon
   sur/
-    scribe.hoon
+    notes.hoon
   mar/
-    scribe/
+    notes/
       action.hoon
       event.hoon
       query.hoon
   lib/
-    scribe/
+    notes/
       path-utils.hoon
       links.hoon
       perms.hoon
       search.hoon
   gen/
-    scribe/
+    notes/
       create-notebook.hoon
       import-tree.hoon
       export-tree.hoon
   tests/
     app/
-      scribe.hoon
+      notes.hoon
 ```
 
 ---
