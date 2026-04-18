@@ -158,11 +158,21 @@
   .sidebar-version {
     font-family: var(--mono);
     font-size: 11px;
+    line-height: 1;
+    padding-top: 4px;
     color: var(--text-muted);
     opacity: 0.6;
     user-select: none;
     margin-left: auto;
   }
+
+  /* mobile hamburger for add/import actions */
+  .sidebar-brand .sidebar-menu-btn { margin-left: auto; display: none; }
+  body.sidebar-menu-open .sidebar-brand .sidebar-menu-btn {
+    background: var(--surface2);
+    color: var(--text);
+  }
+  body.sidebar-menu-open .sidebar-brand .sidebar-menu-btn .icon { opacity: 0.95; }
 
   /* ── SVG icons ── */
   .icon {
@@ -203,7 +213,10 @@
     flex-shrink: 0;
   }
   #folder-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .notebook-lock { width: 12px; height: 12px; color: var(--text-muted); flex-shrink: 0; }
+  .panel-actions { display: flex; align-items: center; gap: 6px; }
+  .notes-panel-footer { display: none; }
+  .nb-lock { width: 12px; height: 12px; color: var(--text-muted); flex-shrink: 0; margin-left: 2px; }
+  .nb-item.active .nb-lock { color: rgba(255,255,255,0.8); }
   .notes-list { flex: 1; overflow-y: auto; }
   .item-row {
     display: flex; align-items: flex-start; gap: 10px;
@@ -461,6 +474,9 @@
       border: none !important;
       transition: transform 0.2s ease;
     }
+    body.loading .sidebar,
+    body.loading .notes-panel,
+    body.loading .editor-panel { transition: none; }
 
     /* Default: sidebar visible, others off-screen right */
     .sidebar  { transform: translateX(0); z-index: 3; }
@@ -480,23 +496,64 @@
     header h1 { font-size: 16px; }
     #ship-label { font-size: 12px; }
 
-    .sidebar-section { font-size: 11px; height: 44px; padding: 0 12px; }
-    .nb-item { font-size: 16px; padding: 10px 12px; }
-    .nb-item .nb-icon .icon { width: 18px; height: 18px; }
-    .sidebar-action { font-size: 14px; padding: 10px 12px; gap: 10px; }
+    /* Bigger tap targets across the board */
+    .icon-btn { padding: 10px; }
+    .icon-btn .icon { width: 20px; height: 20px; }
+    .back-btn { font-size: 17px; padding: 10px 12px; }
 
-    .notes-panel-header { height: 44px; font-size: 14px; padding: 0 12px; }
+    /* Hamburger toggles the existing actions cluster; it sits above the
+       brand row in DOM order, so it naturally "pops out" upward. */
+    .sidebar-actions { display: none; }
+    body.sidebar-menu-open .sidebar-actions { display: block; }
+    .sidebar-brand .sidebar-menu-btn { display: inline-flex; }
+    /* Version sits next to brand name on mobile; hamburger takes the right */
+    .sidebar-version { margin-left: 0; }
+
+    .sidebar-section { font-size: 12px; height: 52px; padding: 0 10px; }
+    .nb-item { font-size: 17px; padding: 12px 10px; }
+    .nb-item .nb-icon .icon { width: 20px; height: 20px; }
+    .sidebar-action { font-size: 15px; padding: 14px 12px; gap: 12px; }
+
+    .notes-panel-header { height: 52px; font-size: 17px; padding: 0 8px; gap: 4px; }
+    #folder-label { font-size: 17px; }
     .item-row { padding: 14px 12px; gap: 12px; }
-    .item-icon .icon { width: 18px; height: 18px; }
-    .item-title { font-size: 16px; }
+    .item-icon .icon { width: 22px; height: 22px; }
+    .item-title { font-size: 17px; }
     .item-date { font-size: 13px; }
     .item-preview { font-size: 14px; }
     .empty-state { font-size: 14px; }
 
-    .editor-toolbar { height: 44px; padding: 0 10px; gap: 6px; }
-    #note-title-input { font-size: 17px; min-width: 0; }
-    #editor { padding: 16px 14px; font-size: 15px; line-height: 1.6; }
-    #preview { padding: 16px 14px; font-size: 15px; }
+    /* Contextual bottom footer on the notebook/notes view */
+    .notes-panel-footer {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 6px 8px;
+      border-top: 1px solid var(--border);
+      background: var(--surface);
+      flex-shrink: 0;
+    }
+    /* Gear on the far left; create buttons on the right */
+    .notes-panel-footer .panel-actions { flex: 1; }
+    .notes-panel-footer #notebook-settings-wrap { margin-right: auto; }
+    /* Gear menu pops upward and left-aligns with its button in the bottom footer */
+    .notes-panel-footer #notebook-settings-menu {
+      top: auto;
+      bottom: 100%;
+      left: 0;
+      right: auto;
+      margin-top: 0;
+      margin-bottom: 4px;
+    }
+    /* On mobile the nb-flag is too small to hit reliably; route copy through the menu instead */
+    .nb-item .nb-flag { pointer-events: none; }
+
+    .editor-toolbar { height: 52px; padding: 0 8px; gap: 4px; }
+    #note-title-input { font-size: 18px; min-width: 0; }
+    .save-status { font-size: 13px; }
+    .note-rev { font-size: 12px; }
+    #editor { padding: 16px 14px; font-size: 16px; line-height: 1.6; }
+    #preview { padding: 16px 14px; font-size: 16px; }
 
     .sidebar { overflow-y: auto; }
     .notes-panel { overflow-y: auto; }
@@ -505,7 +562,7 @@
   }
 </style>
 </head>
-<body>
+<body class="loading">
 
 <!-- SVG icon sprite -->
 <svg xmlns="http://www.w3.org/2000/svg" style="display:none">
@@ -574,6 +631,11 @@
     <polyline points="13,3 13,6.5 9.5,6.5"/>
     <path d="M12.5 6.5a5 5 0 10-1.1 5"/>
   </symbol>
+  <symbol id="i-menu" viewBox="0 0 16 16">
+    <line x1="2.5" y1="4" x2="13.5" y2="4"/>
+    <line x1="2.5" y1="8" x2="13.5" y2="8"/>
+    <line x1="2.5" y1="12" x2="13.5" y2="12"/>
+  </symbol>
 </svg>
 
 <!-- Connect panel (shown until URL + auth set) -->
@@ -604,6 +666,7 @@
       <svg class="icon brand-icon"><use href="#i-notebook"/></svg>
       <span class="brand-name">Notes</span>
       <span class="sidebar-version">alpha v0.1.0</span>
+      <button class="icon-btn sidebar-menu-btn" onclick="toggleSidebarMenu()" title="More"><svg class="icon"><use href="#i-menu"/></svg></button>
     </div>
   </div>
 
@@ -615,22 +678,25 @@
       <button class="icon-btn" id="sidebar-expand-btn" onclick="toggleSidebar()" title="Show sidebar"><svg class="icon"><use href="#i-sidebar"/></svg></button>
       <button class="back-btn" onclick="mobileBack('notebooks')" title="Back to notebooks">← </button>
       <button class="icon-btn folder-up-btn" id="folder-up-btn" onclick="folderUp()" style="display:none" title="Up one folder"><svg class="icon"><use href="#i-arrow-up"/></svg></button>
-      <svg class="icon notebook-lock" id="notebook-lock" style="display:none" title="Private notebook"><use href="#i-lock"/></svg>
       <span id="folder-label">Notes</span>
-      <div class="overflow-wrap" id="notebook-settings-wrap" style="display:none">
-        <button class="icon-btn" id="notebook-settings-btn" onclick="toggleNotebookSettings()" title="Notebook settings"><svg class="icon"><use href="#i-gear"/></svg></button>
-        <div class="overflow-menu" id="notebook-settings-menu">
-          <button id="nb-menu-rename" onclick="openRenameNotebook()">Rename notebook</button>
-          <button id="nb-menu-visibility" onclick="toggleNotebookVisibility()">Make public</button>
-          <button id="nb-menu-export" onclick="exportNotebook()">Export notebook</button>
-          <button id="nb-menu-delete" class="danger" onclick="deleteNotebook()">Delete notebook</button>
-          <button id="nb-menu-leave" class="danger" onclick="leaveRemoteNotebook()" style="display:none">Leave notebook</button>
+      <div class="panel-actions" id="panel-actions">
+        <div class="overflow-wrap" id="notebook-settings-wrap" style="display:none">
+          <button class="icon-btn" id="notebook-settings-btn" onclick="toggleNotebookSettings()" title="Notebook settings"><svg class="icon"><use href="#i-gear"/></svg></button>
+          <div class="overflow-menu" id="notebook-settings-menu">
+            <button id="nb-menu-rename" onclick="openRenameNotebook()">Rename notebook</button>
+            <button id="nb-menu-visibility" onclick="toggleNotebookVisibility()">Make public</button>
+            <button id="nb-menu-copy-flag" onclick="copyActiveFlag()">Copy notebook ID</button>
+            <button id="nb-menu-export" onclick="exportNotebook()">Export notebook</button>
+            <button id="nb-menu-delete" class="danger" onclick="deleteNotebook()">Delete notebook</button>
+            <button id="nb-menu-leave" class="danger" onclick="leaveRemoteNotebook()" style="display:none">Leave notebook</button>
+          </div>
         </div>
+        <button class="icon-btn" id="new-folder-btn" title="New folder" onclick="openModal('new-folder')" style="display:none"><svg class="icon"><use href="#i-folder-plus"/></svg></button>
+        <button class="icon-btn" id="new-note-btn" title="New note" onclick="newNote()" style="display:none"><svg class="icon"><use href="#i-doc-plus"/></svg></button>
       </div>
-      <button class="icon-btn" id="new-folder-btn" title="New folder" onclick="openModal('new-folder')" style="display:none"><svg class="icon"><use href="#i-folder-plus"/></svg></button>
-      <button class="icon-btn" id="new-note-btn" title="New note" onclick="newNote()" style="display:none"><svg class="icon"><use href="#i-doc-plus"/></svg></button>
     </div>
     <div class="notes-list" id="notes-list"></div>
+    <div class="notes-panel-footer" id="notes-panel-footer"></div>
   </div>
 
   <div class="resizer" data-target="notes-panel" aria-hidden="true"></div>
@@ -671,6 +737,18 @@
 </div>
 
 <script>
+// ── Initial view (synchronous) ────────────────────────────────────────────
+// Set data-view from the URL before first paint so mobile doesn't flash the
+// wrong slide-panel. On desktop this attribute is ignored.
+(function () {
+  const m = location.pathname.match(/^\/notes\/nb\/([^/]+)\/([^/]+)(?:\/f\/\d+)?(?:\/n\/(\d+))?\/?$/);
+  const layout = document.querySelector(".layout");
+  if (!layout) return;
+  if (m && m[3]) layout.setAttribute("data-view", "editor");
+  else if (m) layout.setAttribute("data-view", "notes");
+  else layout.setAttribute("data-view", "notebooks");
+})();
+
 // ── State ──────────────────────────────────────────────────────────────────
 let BASE_URL = "";
 let SHIP = "";
@@ -737,7 +815,17 @@ async function connect() {
   openChannel();
   await loadNotebooks();
   await loadPublished();
-  await restoreSelection();
+  const applied = await applyRoute();
+  // Only fall back to localStorage on desktop — on mobile each "screen" should
+  // correspond to a URL, and opening a bare /notes/ URL means start fresh.
+  if (!applied && !isMobile()) {
+    await restoreSelection();
+    replaceRoute();
+  }
+  // Re-enable slide transitions now that the initial view is settled.
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => document.body.classList.remove("loading"));
+  });
   maybeShowDisclaimer();
 }
 
@@ -764,6 +852,90 @@ async function restoreSelection() {
     }
   } catch {}
 }
+
+// ── Routing ──────────────────────────────────────────────────────────────
+// URL scheme: /notes/nb/<host>/<flagName>[/f/<folderId>][/n/<noteId>]
+let applyingRoute = false;
+
+function buildRoute() {
+  if (!activeNotebookId) return "/notes/";
+  const nb = notebooks[activeNotebookId];
+  if (!nb) return "/notes/";
+  let path = `/notes/nb/${nb.host}/${encodeURIComponent(nb.flagName)}`;
+  const rootId = rootFolderId();
+  if (activeFolderId && activeFolderId !== rootId) path += `/f/${activeFolderId}`;
+  if (activeNoteId) path += `/n/${activeNoteId}`;
+  return path;
+}
+
+function pushRoute() {
+  if (applyingRoute) return;
+  const url = buildRoute();
+  if (window.location.pathname === url) return;
+  try { history.pushState({}, "", url); } catch(_) {}
+}
+
+function replaceRoute() {
+  const url = buildRoute();
+  if (window.location.pathname === url) return;
+  try { history.replaceState({}, "", url); } catch(_) {}
+}
+
+async function applyRoute() {
+  const path = window.location.pathname;
+  const m = path.match(/^\/notes\/nb\/([^/]+)\/([^/]+)(?:\/f\/(\d+))?(?:\/n\/(\d+))?\/?$/);
+  if (!m) return false;
+  const host = decodeURIComponent(m[1]);
+  const flagName = decodeURIComponent(m[2]);
+  const fid = m[3] ? parseInt(m[3], 10) : null;
+  const nid = m[4] ? parseInt(m[4], 10) : null;
+
+  const flag = `${host}/${flagName}`;
+  const nb = Object.values(notebooks).find(x => x.flag === flag);
+  if (!nb) return false;
+
+  applyingRoute = true;
+  try {
+    if (activeNotebookId !== nb.id) await selectNotebook(nb.id);
+    // Folder: URL value or implicit root
+    const targetFolder = fid && folders[fid] ? fid : rootFolderId();
+    if (targetFolder && activeFolderId !== targetFolder) {
+      await navigateToFolder(targetFolder);
+    }
+    // Note: URL specifies one or deselect
+    if (nid && notes[nid]) {
+      if (activeNoteId !== nid) await selectNote(nid);
+    } else if (activeNoteId) {
+      activeNoteId = null;
+      clearEditor();
+      renderItems();
+    }
+    // Drive the mobile slide-panel view from the URL
+    if (isMobile()) mobileSetView(nid ? "editor" : "notes");
+  } finally {
+    applyingRoute = false;
+  }
+  return true;
+}
+
+function clearSelection() {
+  activeNotebookId = null;
+  activeNotebookFlag = null;
+  activeFolderId = null;
+  activeNoteId = null;
+  clearEditor();
+  renderNotebooks();
+  renderItems();
+  if (isMobile()) mobileSetView("notebooks");
+}
+
+window.addEventListener("popstate", async () => {
+  const applied = await applyRoute();
+  if (!applied) {
+    applyingRoute = true;
+    try { clearSelection(); } finally { applyingRoute = false; }
+  }
+});
 
 // ── Eyre Channel ──────────────────────────────────────────────────────────
 function openChannel() {
@@ -887,6 +1059,7 @@ function handleNotebookDeleted(nid) {
     activeFolderId = null;
     activeNoteId = null;
     clearEditor();
+    pushRoute();
   }
   loadNotebooks();
 }
@@ -975,7 +1148,8 @@ function renderNotebooks() {
   list.sort((a,b) => a.title.localeCompare(b.title)).forEach(nb => {
     const div = document.createElement("div");
     div.className = "nb-item" + (nb.id === activeNotebookId ? " active" : "");
-    div.innerHTML = `<span class="nb-icon">${icon('notebook')}</span><span class="nb-name">${esc(nb.title)}</span><span class="nb-flag" title="Click to copy flag">${esc(nb.flag)}</span>`;
+    const lockHtml = nb.visibility === "private" ? `<svg class="icon nb-lock"><use href="#i-lock"/></svg>` : "";
+    div.innerHTML = `<span class="nb-icon">${icon('notebook')}</span><span class="nb-name">${esc(nb.title)}</span>${lockHtml}<span class="nb-flag" title="Click to copy flag">${esc(nb.flag)}</span>`;
     div.onclick = () => selectNotebook(nb.id);
     div.querySelector(".nb-flag").onclick = (e) => {
       e.stopPropagation();
@@ -1025,14 +1199,10 @@ function updateHeader() {
     } else {
       visBtn.style.display = "none";
     }
-    // Lock indicator when private
-    const lockEl = document.getElementById("notebook-lock");
-    lockEl.style.display = (nb && nb.visibility === "private") ? "" : "none";
   } else {
     labelEl.textContent = folders[activeFolderId]?.name || "Folder";
     upBtn.style.display = "";
     settingsWrap.style.display = "none";
-    document.getElementById("notebook-lock").style.display = "none";
   }
 }
 
@@ -1097,6 +1267,7 @@ async function navigateToFolder(id) {
   clearEditor();
   renderItems();
   saveSelection();
+  pushRoute();
 }
 
 async function folderUp() {
@@ -1484,6 +1655,7 @@ async function selectNotebook(id) {
   await loadNotes(id);
   subscribeEvents();
   saveSelection();
+  pushRoute();
   if (isMobile()) mobileSetView("notes");
 }
 
@@ -1502,6 +1674,7 @@ async function selectNote(id) {
   clearDirty();
   document.getElementById("overflow-wrap").style.display = "";
   saveSelection();
+  pushRoute();
   // Update publish/unpublish button state
   const isPublished = publishedIds.has(pubKey(activeNotebookFlag, id));
   document.getElementById("publish-btn").style.display = isPublished ? "none" : "";
@@ -1701,9 +1874,20 @@ function closeNotebookSettings() {
   document.getElementById("notebook-settings-menu").classList.remove("open");
 }
 
+function toggleSidebarMenu() {
+  document.body.classList.toggle("sidebar-menu-open");
+}
+
+function closeSidebarMenu() {
+  document.body.classList.remove("sidebar-menu-open");
+}
+
 document.addEventListener("click", (e) => {
   if (!e.target.closest("#overflow-wrap")) closeOverflow();
   if (!e.target.closest("#notebook-settings-wrap")) closeNotebookSettings();
+  // Close sidebar menu on any click that isn't the hamburger itself.
+  // This includes clicks on the .sidebar-action buttons (so they close after firing).
+  if (!e.target.closest(".sidebar-menu-btn")) closeSidebarMenu();
 });
 
 async function deleteNote() {
@@ -2010,6 +2194,7 @@ async function deleteNotebook() {
   activeFolderId = null;
   activeNoteId = null;
   clearEditor();
+  pushRoute();
   setTimeout(async () => {
     await loadNotebooks();
     renderItems();
@@ -2037,6 +2222,23 @@ async function toggleNotebookVisibility() {
   }
 }
 
+async function copyActiveFlag() {
+  closeNotebookSettings();
+  if (!activeNotebookFlag) return;
+  try {
+    await navigator.clipboard.writeText(activeNotebookFlag);
+    // Visible confirmation via save-status (transient)
+    const el = document.getElementById("save-status");
+    if (el) {
+      const prev = el.textContent;
+      el.textContent = "Notebook ID copied";
+      setTimeout(() => { if (el.textContent === "Notebook ID copied") el.textContent = prev; }, 1500);
+    }
+  } catch(_) {
+    prompt("Notebook ID:", activeNotebookFlag);
+  }
+}
+
 async function leaveRemoteNotebook() {
   closeNotebookSettings();
   if (!activeNotebookId || !activeNotebookFlag) return;
@@ -2052,6 +2254,7 @@ async function leaveRemoteNotebook() {
   activeFolderId = null;
   activeNoteId = null;
   clearEditor();
+  pushRoute();
   setTimeout(async () => {
     await loadNotebooks();
     renderItems();
@@ -2114,8 +2317,25 @@ function mobileSetView(view) {
 }
 
 function mobileBack(to) {
-  if (to === "notebooks") mobileSetView("notebooks");
-  else if (to === "notes") mobileSetView("notes");
+  // In-app back button: deselect the corresponding level AND push a new URL
+  // so browser back/forward + refresh stay in sync with the visible view.
+  if (to === "notebooks") {
+    activeNoteId = null;
+    activeFolderId = null;
+    activeNotebookId = null;
+    activeNotebookFlag = null;
+    clearEditor();
+    renderNotebooks();
+    renderItems();
+    mobileSetView("notebooks");
+    pushRoute();
+  } else if (to === "notes") {
+    activeNoteId = null;
+    clearEditor();
+    renderItems();
+    mobileSetView("notes");
+    pushRoute();
+  }
 }
 
 // ── Util ──────────────────────────────────────────────────────────────────
@@ -2259,6 +2479,20 @@ function restoreSidebarCollapsed() {
     }
   } catch(_) {}
 }
+
+// Reparent the notebook action buttons into the header on desktop
+// or into the bottom footer on mobile. Runs on load and on resize.
+function moveActionsForViewport() {
+  const actions = document.getElementById("panel-actions");
+  const header = document.querySelector(".notes-panel-header");
+  const footer = document.getElementById("notes-panel-footer");
+  if (!actions || !header || !footer) return;
+  const target = isMobile() ? footer : header;
+  if (actions.parentNode !== target) target.appendChild(actions);
+}
+
+moveActionsForViewport();
+window.addEventListener("resize", moveActionsForViewport);
 
 restoreSidebarCollapsed();
 restoreColumnWidths();
