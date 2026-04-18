@@ -4,6 +4,11 @@
 +$  role
   ?(%owner %editor %viewer)
 ::
+::  notebook visibility: private (default) rejects joins from non-members;
+::  public allows anyone to join.
++$  visibility
+  ?(%public %private)
+::
 +$  notebook
   $:  id=@ud
       title=@t
@@ -69,6 +74,8 @@
 +$  a-notes
   $%  [%create-notebook title=@t]
       [%rename-notebook notebook-id=@ud title=@t]
+      [%delete-notebook notebook-id=@ud]
+      [%set-visibility notebook-id=@ud =visibility]
       [%join notebook-id=@ud]
       [%leave notebook-id=@ud]
       [%join-remote =flag]
@@ -95,6 +102,8 @@
 +$  c-notes
   $%  [%create-notebook title=@t actor=ship]
       [%rename-notebook notebook-id=@ud title=@t actor=ship]
+      [%delete-notebook notebook-id=@ud actor=ship]
+      [%set-visibility notebook-id=@ud =visibility actor=ship]
       [%join notebook-id=@ud actor=ship]
       [%leave notebook-id=@ud actor=ship]
       [%join-remote =flag actor=ship]
@@ -121,6 +130,8 @@
 +$  u-notes
   $%  [%notebook-created =notebook actor=ship]
       [%notebook-renamed notebook-id=@ud title=@t actor=ship]
+      [%notebook-deleted notebook-id=@ud actor=ship]
+      [%notebook-visibility-changed notebook-id=@ud =visibility actor=ship]
       [%member-joined notebook-id=@ud who=ship role=role actor=ship]
       [%member-left notebook-id=@ud who=ship actor=ship]
       [%folder-created =folder actor=ship]
@@ -169,7 +180,8 @@
       next-id=@ud
   ==
 ::
-::  state-2: adds published notes cache
+::  state-2: adds published notes cache keyed only by note-id
+::  (kept for migration — the bare @ud key collides across notebooks)
 +$  state-2
   $:  %2
       books=(map flag [=net =notebook-state])
@@ -177,5 +189,22 @@
       published=(map @ud @t)
   ==
 ::
-+$  state  state-2
+::  state-3: published keyed by (flag, note-id) to disambiguate across notebooks
++$  state-3
+  $:  %3
+      books=(map flag [=net =notebook-state])
+      next-id=@ud
+      published=(map [=flag note-id=@ud] @t)
+  ==
+::
+::  state-4: adds per-notebook visibility (private default)
++$  state-4
+  $:  %4
+      books=(map flag [=net =notebook-state])
+      next-id=@ud
+      published=(map [=flag note-id=@ud] @t)
+      visibilities=(map flag visibility)
+  ==
+::
++$  state  state-4
 --

@@ -12,6 +12,7 @@
     --surface: #1a1a1a;
     --surface2: #222;
     --border: #2e2e2e;
+    --border-item: #1a1a1a;
     --text: #e8e8e8;
     --text-muted: #666;
     --accent: #7c6af7;
@@ -35,25 +36,22 @@
     inset: 0;
   }
 
-  /* ── header ── */
-  header {
+  /* ── sidebar footer (brand only) ── */
+  .sidebar-brand {
+    margin-top: 12px;
+    padding: 4px 14px 10px;
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 10px 16px;
-    border-bottom: 1px solid var(--border);
-    background: var(--surface);
+    gap: 6px;
+    color: var(--text-muted);
     flex-shrink: 0;
   }
-  header h1 { font-size: 15px; font-weight: 600; letter-spacing: -0.3px; }
-  #ship-label { font-size: 12px; color: var(--text-muted); margin-left: auto; }
-  #status-dot {
-    width: 8px; height: 8px; border-radius: 50%;
-    background: var(--text-muted); flex-shrink: 0;
-    transition: background 0.3s;
-  }
-  #status-dot.connected { background: var(--success); }
-  #status-dot.error { background: var(--danger); }
+  /* brand-icon now uses the default .icon opacity */
+  .sidebar-brand .brand-name { font-size: 13px; font-weight: 600; }
+
+  /* ── connection state label ── */
+  #conn-label.reconnecting { color: #d4a72c; }
+  #conn-label.disconnected { color: var(--danger); }
 
   /* ── layout ── */
   .layout {
@@ -61,6 +59,23 @@
     flex: 1;
     overflow: hidden;
   }
+
+  /* ── column resizers ── */
+  .resizer {
+    flex-shrink: 0;
+    width: 3px;
+    margin-left: -1px;       /* center the 3px hit area over the 1px border */
+    cursor: col-resize;
+    background: transparent;
+    transition: background 0.15s;
+    position: relative;
+    z-index: 5;
+    user-select: none;
+    touch-action: none;
+  }
+  .resizer:hover,
+  .resizer.dragging { background: rgba(124,106,247,0.4); }
+  body.resizing { cursor: col-resize; user-select: none; }
 
   /* ── sidebar ── */
   .sidebar {
@@ -84,13 +99,20 @@
     align-items: center;
     justify-content: space-between;
   }
+  .sidebar-section-actions { display: flex; align-items: center; gap: 2px; }
+
+  /* Collapsed sidebar — hide sidebar and its resizer, reveal expand button */
+  #sidebar-expand-btn { display: none; }
+  body.sidebar-collapsed .sidebar { display: none; }
+  body.sidebar-collapsed .resizer[data-target="sidebar"] { display: none; }
+  body.sidebar-collapsed #sidebar-expand-btn { display: inline-flex; }
   .sidebar-list { flex: 1; overflow-y: auto; padding-bottom: 8px; min-height: 0; }
   .nb-item {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 4px 6px;
-    padding: 6px 10px;
+    padding: 6px 6px;
     cursor: pointer;
     border-radius: 4px;
     margin: 1px 4px;
@@ -133,6 +155,14 @@
   .sidebar-action:hover { background: var(--surface2); color: var(--text); }
   .sidebar-action[disabled] { opacity: 0.4; cursor: default; }
   .sidebar-action[disabled]:hover { background: none; color: var(--text-muted); }
+  .sidebar-version {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-muted);
+    opacity: 0.6;
+    user-select: none;
+    margin-left: auto;
+  }
 
   /* ── SVG icons ── */
   .icon {
@@ -140,7 +170,9 @@
     stroke: currentColor; fill: none;
     stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round;
     flex-shrink: 0;
+    opacity: 0.65;
   }
+  .icon-btn:hover .icon { opacity: 0.95; }
 
   /* ── icon button ── */
   .icon-btn {
@@ -171,21 +203,42 @@
     flex-shrink: 0;
   }
   #folder-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .notebook-lock { width: 12px; height: 12px; color: var(--text-muted); flex-shrink: 0; }
   .notes-list { flex: 1; overflow-y: auto; }
   .item-row {
-    display: flex; align-items: center; gap: 10px;
+    display: flex; align-items: flex-start; gap: 10px;
     padding: 10px 12px;
     cursor: pointer;
-    border-bottom: 1px solid var(--border);
+    border-bottom: 1px solid var(--border-item);
     transition: background 0.1s;
   }
+  .item-row .item-icon { margin-top: 1px; }
   .item-row:hover { background: var(--surface2); }
   .item-row.active { background: rgba(124,106,247,0.15); border-left: 2px solid var(--accent); padding-left: 10px; }
-  .item-icon { flex-shrink: 0; opacity: 0.7; line-height: 1; display: flex; align-items: center; }
+  .item-icon { flex-shrink: 0; line-height: 1; display: flex; align-items: center; }
   .item-body { flex: 1; min-width: 0; }
-  .item-title { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .item-meta { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+  .item-title-row { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+  .item-title { flex: 1; font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .item-date { font-size: 11px; color: var(--text-muted); flex-shrink: 0; }
+  .item-preview {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    opacity: 0.7;
+  }
   .item-row.is-folder .item-title { font-weight: 500; }
+  .item-chevron {
+    flex-shrink: 0;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    margin-top: 1px;
+  }
+  .item-chevron .icon { width: 14px; height: 14px; }
+  .item-row.is-folder:hover .item-chevron .icon { opacity: 0.95; }
   .empty-state { padding: 24px 12px; text-align: center; color: var(--text-muted); font-size: 12px; }
   .folder-up-btn { color: var(--text-muted); }
   .folder-up-btn:hover { color: var(--text); }
@@ -225,6 +278,7 @@
   .save-btn:hover { background: var(--accent-hover); }
   .save-btn:disabled { opacity: 0.4; cursor: default; }
   .save-status { font-size: 11px; color: var(--text-muted); }
+  .note-rev { font-family: var(--mono); font-size: 11px; color: var(--text-muted); opacity: 0.6; user-select: none; }
 
   /* ── overflow menu ── */
   .overflow-wrap { position: relative; }
@@ -377,6 +431,9 @@
     .back-btn { display: inline-flex; align-items: center; }
 
     .layout { position: relative; }
+    .resizer { display: none; }
+    body.sidebar-collapsed .sidebar { display: flex; }
+    #sidebar-expand-btn { display: none !important; }
     .sidebar, .notes-panel, .editor-panel {
       position: absolute;
       inset: 0;
@@ -412,7 +469,8 @@
     .item-row { padding: 14px 12px; gap: 12px; }
     .item-icon .icon { width: 18px; height: 18px; }
     .item-title { font-size: 16px; }
-    .item-meta { font-size: 13px; }
+    .item-date { font-size: 13px; }
+    .item-preview { font-size: 14px; }
     .empty-state { font-size: 14px; }
 
     .editor-toolbar { height: 44px; padding: 0 10px; gap: 6px; }
@@ -477,6 +535,25 @@
     <ellipse cx="8" cy="8" rx="3" ry="6.5"/>
     <line x1="1.5" y1="8" x2="14.5" y2="8"/>
   </symbol>
+  <symbol id="i-gear" viewBox="0 0 16 16">
+    <circle cx="8" cy="8" r="2"/>
+    <path d="M13 8a5 5 0 00-.12-1.08l1.28-1-1.5-2.6-1.52.6a5 5 0 00-1.87-1.08L9 1H6l-.27 1.84a5 5 0 00-1.87 1.08l-1.52-.6-1.5 2.6 1.28 1A5 5 0 002 8a5 5 0 00.12 1.08l-1.28 1 1.5 2.6 1.52-.6a5 5 0 001.87 1.08L6 15h3l.27-1.84a5 5 0 001.87-1.08l1.52.6 1.5-2.6-1.28-1A5 5 0 0013 8z"/>
+  </symbol>
+  <symbol id="i-lock" viewBox="0 0 16 16">
+    <rect x="3" y="7" width="10" height="7" rx="1"/>
+    <path d="M5 7V4.5a3 3 0 016 0V7"/>
+  </symbol>
+  <symbol id="i-sidebar" viewBox="0 0 16 16">
+    <rect x="1.5" y="2.5" width="13" height="11" rx="1.5"/>
+    <line x1="6" y1="2.5" x2="6" y2="13.5"/>
+  </symbol>
+  <symbol id="i-chevron-right" viewBox="0 0 16 16">
+    <polyline points="6,3 11,8 6,13"/>
+  </symbol>
+  <symbol id="i-sync" viewBox="0 0 16 16">
+    <polyline points="13,3 13,6.5 9.5,6.5"/>
+    <path d="M12.5 6.5a5 5 0 10-1.1 5"/>
+  </symbol>
 </svg>
 
 <!-- Connect panel (shown until URL + auth set) -->
@@ -489,37 +566,53 @@
   <button class="btn btn-primary" onclick="connect()">Connect</button>
 </div>
 
-<header>
-  <h1><svg class="icon" style="width:18px;height:18px;vertical-align:-3px;margin-right:4px"><use href="#i-notebook"/></svg>Notes</h1>
-  <span id="ship-label"></span>
-  <div id="status-dot"></div>
-</header>
-
 <div class="layout">
   <!-- Sidebar: notebooks + import actions -->
   <div class="sidebar">
     <div class="sidebar-section">
-      Notebooks
-      <button class="icon-btn" title="Add notebook" onclick="openModal(&quot;add-notebook&quot;)"><svg class="icon"><use href="#i-plus"/></svg></button>
+      <span id="conn-label">Notebooks</span>
+      <button class="icon-btn" title="Collapse sidebar" onclick="toggleSidebar()"><svg class="icon"><use href="#i-sidebar"/></svg></button>
     </div>
     <div class="sidebar-list" id="notebooks-list"></div>
     <div class="sidebar-actions">
+      <button class="sidebar-action" onclick="openModal(&quot;add-notebook&quot;)"><svg class="icon"><use href="#i-plus"/></svg> Add notebook</button>
       <button class="sidebar-action" id="import-files-btn" onclick="triggerImport(false)"><svg class="icon"><use href="#i-download"/></svg> Import files</button>
       <button class="sidebar-action" id="import-folder-btn" onclick="triggerImport(true)"><svg class="icon"><use href="#i-folder-down"/></svg> Import folder</button>
+      <button class="sidebar-action" onclick="openModal(&quot;desktop-sync&quot;)"><svg class="icon"><use href="#i-sync"/></svg> Desktop sync app</button>
+    </div>
+    <div class="sidebar-brand">
+      <svg class="icon brand-icon"><use href="#i-notebook"/></svg>
+      <span class="brand-name">Notes</span>
+      <span class="sidebar-version">alpha v0.1.0</span>
     </div>
   </div>
+
+  <div class="resizer" data-target="sidebar" aria-hidden="true"></div>
 
   <!-- Folders + Notes interleaved -->
   <div class="notes-panel">
     <div class="notes-panel-header">
+      <button class="icon-btn" id="sidebar-expand-btn" onclick="toggleSidebar()" title="Show sidebar"><svg class="icon"><use href="#i-sidebar"/></svg></button>
       <button class="back-btn" onclick="mobileBack('notebooks')" title="Back to notebooks">← </button>
       <button class="icon-btn folder-up-btn" id="folder-up-btn" onclick="folderUp()" style="display:none" title="Up one folder"><svg class="icon"><use href="#i-arrow-up"/></svg></button>
+      <svg class="icon notebook-lock" id="notebook-lock" style="display:none" title="Private notebook"><use href="#i-lock"/></svg>
       <span id="folder-label">Notes</span>
+      <div class="overflow-wrap" id="notebook-settings-wrap" style="display:none">
+        <button class="icon-btn" id="notebook-settings-btn" onclick="toggleNotebookSettings()" title="Notebook settings"><svg class="icon"><use href="#i-gear"/></svg></button>
+        <div class="overflow-menu" id="notebook-settings-menu">
+          <button id="nb-menu-rename" onclick="openRenameNotebook()">Rename notebook</button>
+          <button id="nb-menu-visibility" onclick="toggleNotebookVisibility()">Make public</button>
+          <button id="nb-menu-delete" class="danger" onclick="deleteNotebook()">Delete notebook</button>
+          <button id="nb-menu-leave" class="danger" onclick="leaveRemoteNotebook()" style="display:none">Leave notebook</button>
+        </div>
+      </div>
       <button class="icon-btn" id="new-folder-btn" title="New folder" onclick="openModal('new-folder')" style="display:none"><svg class="icon"><use href="#i-folder-plus"/></svg></button>
       <button class="icon-btn" id="new-note-btn" title="New note" onclick="newNote()" style="display:none"><svg class="icon"><use href="#i-doc-plus"/></svg></button>
     </div>
     <div class="notes-list" id="notes-list"></div>
   </div>
+
+  <div class="resizer" data-target="notes-panel" aria-hidden="true"></div>
 
   <!-- Editor -->
   <div class="editor-panel">
@@ -527,6 +620,7 @@
       <button class="back-btn" onclick="mobileBack('notes')" title="Back to notes">← </button>
       <input id="note-title-input" type="text" placeholder="Untitled" oninput="onEditorInput()" />
       <span class="save-status" id="save-status"></span>
+      <span class="note-rev" id="note-rev"></span>
       <button class="icon-btn" id="preview-btn" onclick="togglePreview()" title="Preview"><svg class="icon"><use href="#i-eye"/></svg></button>
       <button class="icon-btn" id="view-published-btn" onclick="viewPublished()" title="View published" style="display:none"><svg class="icon"><use href="#i-globe"/></svg></button>
       <div class="overflow-wrap" id="overflow-wrap" style="display:none">
@@ -612,8 +706,7 @@ async function connect() {
   } catch(e) {}
 
   document.getElementById("connect-panel").style.display = "none";
-  document.getElementById("ship-label").textContent = SHIP || BASE_URL;
-  document.getElementById("status-dot").className = "connected";
+  setConnectionState("connected");
 
   openChannel();
   await loadNotebooks();
@@ -683,12 +776,8 @@ function startSSE() {
       handleEvent(msg);
     } catch {}
   };
-  eventSource.onerror = () => {
-    document.getElementById("status-dot").className = "error";
-  };
-  eventSource.onopen = () => {
-    document.getElementById("status-dot").className = "connected";
-  };
+  eventSource.onerror = () => { setConnectionState("reconnecting"); };
+  eventSource.onopen = () => { setConnectionState("connected"); };
 }
 
 async function poke(actions) {
@@ -736,7 +825,8 @@ function handleEvent(msg) {
     const evt = data.update;
     const type = evt.type;
     // Reload relevant data on events
-    if (type === "notebook-created" || type === "notebook-renamed") loadNotebooks();
+    if (type === "notebook-created" || type === "notebook-renamed" || type === "notebook-visibility-changed") loadNotebooks();
+    else if (type === "notebook-deleted") handleNotebookDeleted(evt.notebookId);
     else if (type?.startsWith("folder-")) loadFolders(activeNotebookId);
     else if (type?.startsWith("note-")) {
       loadNotes(activeNotebookId);
@@ -750,7 +840,8 @@ function handleEvent(msg) {
 
   // Fallback: try handling as a raw event (backwards compat)
   const type = data.type;
-  if (type === "notebook-created" || type === "notebook-renamed") loadNotebooks();
+  if (type === "notebook-created" || type === "notebook-renamed" || type === "notebook-visibility-changed") loadNotebooks();
+  else if (type === "notebook-deleted") handleNotebookDeleted(data.notebookId);
   else if (type?.startsWith("folder-")) loadFolders(activeNotebookId);
   else if (type?.startsWith("note-")) {
     loadNotes(activeNotebookId);
@@ -760,10 +851,30 @@ function handleEvent(msg) {
   }
 }
 
+function handleNotebookDeleted(nid) {
+  // If the deleted notebook is currently active, clear the view
+  if (activeNotebookId === nid) {
+    activeNotebookId = null;
+    activeNotebookFlag = null;
+    activeFolderId = null;
+    activeNoteId = null;
+    clearEditor();
+  }
+  loadNotebooks();
+}
+
 // ── Load Data ─────────────────────────────────────────────────────────────
+// Compound key "~host/flagName|noteId" so publish state is scoped per-notebook
+function pubKey(flag, noteId) { return `${flag}|${noteId}`; }
+function pubUrl(flag, noteId) { return `${BASE_URL}/notes/pub/${flag}/${noteId}`; }
+
 async function loadPublished() {
   const data = await scry("/v0/published");
-  publishedIds = new Set(data || []);
+  publishedIds = new Set();
+  (data || []).forEach(item => {
+    const flag = `${item.host}/${item.flagName}`;
+    publishedIds.add(pubKey(flag, item.noteId));
+  });
 }
 
 async function loadNotebooks() {
@@ -775,9 +886,11 @@ async function loadNotebooks() {
     nb.host = entry.host;
     nb.flagName = entry.flagName;
     nb.flag = `${entry.host}/${entry.flagName}`;
+    nb.visibility = entry.visibility || 'private';
     notebooks[nb.id] = nb;
   });
   renderNotebooks();
+  updateHeader();
 }
 
 async function loadFolders(notebookId) {
@@ -848,11 +961,13 @@ function updateHeader() {
   const upBtn = document.getElementById("folder-up-btn");
   const newFolderBtn = document.getElementById("new-folder-btn");
   const newNoteBtn = document.getElementById("new-note-btn");
+  const settingsWrap = document.getElementById("notebook-settings-wrap");
   if (!activeNotebookId) {
     labelEl.textContent = "Notes";
     upBtn.style.display = "none";
     newFolderBtn.style.display = "none";
     newNoteBtn.style.display = "none";
+    settingsWrap.style.display = "none";
     return;
   }
   newFolderBtn.style.display = "";
@@ -860,11 +975,31 @@ function updateHeader() {
   const rootId = rootFolderId();
   const isAtRoot = !activeFolderId || activeFolderId === rootId;
   if (isAtRoot) {
-    labelEl.textContent = notebooks[activeNotebookId]?.title || "Notes";
+    const nb = notebooks[activeNotebookId];
+    labelEl.textContent = nb?.title || "Notes";
     upBtn.style.display = "none";
+    settingsWrap.style.display = "";
+    // Show rename/delete + visibility toggle for local notebooks, leave for remote.
+    // Normalize by stripping tildes — `/~/name` and scot %p aren't guaranteed to match formats.
+    const isLocal = nb && SHIP && nb.host.replace(/^~/, "") === SHIP.replace(/^~/, "");
+    document.getElementById("nb-menu-rename").style.display = isLocal ? "" : "none";
+    document.getElementById("nb-menu-delete").style.display = isLocal ? "" : "none";
+    document.getElementById("nb-menu-leave").style.display = isLocal ? "none" : "";
+    const visBtn = document.getElementById("nb-menu-visibility");
+    if (isLocal) {
+      visBtn.style.display = "";
+      visBtn.textContent = nb.visibility === "public" ? "Make private" : "Make public";
+    } else {
+      visBtn.style.display = "none";
+    }
+    // Lock indicator when private
+    const lockEl = document.getElementById("notebook-lock");
+    lockEl.style.display = (nb && nb.visibility === "private") ? "" : "none";
   } else {
     labelEl.textContent = folders[activeFolderId]?.name || "Folder";
     upBtn.style.display = "";
+    settingsWrap.style.display = "none";
+    document.getElementById("notebook-lock").style.display = "none";
   }
 }
 
@@ -895,6 +1030,7 @@ function renderItems() {
       <div class="item-body">
         <div class="item-title">${esc(f.name)}</div>
       </div>
+      <span class="item-chevron">${icon('chevron-right')}</span>
     `;
     div.onclick = () => navigateToFolder(f.id);
     el.appendChild(div);
@@ -905,11 +1041,15 @@ function renderItems() {
     div.className = "item-row is-note" + (n.id === activeNoteId ? " active" : "");
     const d = new Date(n.updatedAt * 1000);
     const dateStr = d.toLocaleDateString(undefined, { month:"short", day:"numeric" });
+    const preview = notePreview(n.bodyMd);
     div.innerHTML = `
       <span class="item-icon">${icon('doc')}</span>
       <div class="item-body">
-        <div class="item-title">${esc(n.title)}</div>
-        <div class="item-meta">${dateStr} · rev ${n.revision}</div>
+        <div class="item-title-row">
+          <div class="item-title">${esc(n.title)}</div>
+          <div class="item-date">${dateStr}</div>
+        </div>
+        <div class="item-preview">${preview ? esc(preview) : "<span style='opacity:0.5'>No content</span>"}</div>
       </div>
     `;
     div.onclick = () => selectNote(n.id);
@@ -1192,11 +1332,12 @@ async function selectNote(id) {
   document.getElementById("editor").value = n.bodyMd;
   if (previewMode) document.getElementById("preview").innerHTML = renderMarkdown(n.bodyMd);
   savedRevision = n.revision;
+  document.getElementById("note-rev").textContent = `rev ${n.revision}`;
   clearDirty();
   document.getElementById("overflow-wrap").style.display = "";
   saveSelection();
   // Update publish/unpublish button state
-  const isPublished = publishedIds.has(id);
+  const isPublished = publishedIds.has(pubKey(activeNotebookFlag, id));
   document.getElementById("publish-btn").style.display = isPublished ? "none" : "";
   document.getElementById("unpublish-btn").style.display = isPublished ? "" : "none";
   document.getElementById("view-published-btn").style.display = isPublished ? "" : "none";
@@ -1213,24 +1354,72 @@ async function newNote() {
     "create-note": { notebookId: activeNotebookId, folderId: activeFolderId, title: "Untitled", bodyMd: "" }
   });
 
-  // Reload and select the newest note
+  // Reload, select the newest note, and focus the editor
   setTimeout(async () => {
     await loadNotes(activeNotebookId);
     const inFolder = Object.values(notes).filter(n => n.folderId === activeFolderId);
     const newest = inFolder.sort((a,b) => b.id - a.id)[0];
-    if (newest) selectNote(newest.id);
+    if (newest) {
+      await selectNote(newest.id);
+      document.getElementById("editor").focus();
+    }
   }, 300);
 }
 
 // ── Auto-save ────────────────────────────────────────────────────────────
 let saveTimer = null;
 let saving = false;
+let autoCreating = false;
 
 function onEditorInput() {
+  // If the user starts typing with no note selected, auto-create one.
+  if (!activeNoteId && !autoCreating) {
+    triggerAutoCreate();
+    return;
+  }
+  // While auto-creating, keep accepting keystrokes — editor DOM updates
+  // naturally, we'll promote the typed content once the note is ready.
+  if (autoCreating) return;
+
   dirty = true;
   document.getElementById("save-status").textContent = "";
   if (saveTimer) clearTimeout(saveTimer);
   saveTimer = setTimeout(() => autoSave(), 1500);
+}
+
+async function triggerAutoCreate() {
+  const editor = document.getElementById("editor");
+  const titleInput = document.getElementById("note-title-input");
+  if (!activeNotebookId || !activeFolderId) {
+    // Can't create — clear the editor and tell the user.
+    editor.value = "";
+    titleInput.value = "";
+    alert(activeNotebookId ? "No folder selected" : "Select a notebook first");
+    return;
+  }
+  autoCreating = true;
+  await pokeAction({
+    "create-note": { notebookId: activeNotebookId, folderId: activeFolderId, title: "Untitled", bodyMd: "" }
+  });
+  setTimeout(async () => {
+    // Capture what the user typed during the create roundtrip
+    const pendingBody = editor.value;
+    const pendingTitle = titleInput.value;
+    await loadNotes(activeNotebookId);
+    const inFolder = Object.values(notes).filter(n => n.folderId === activeFolderId);
+    const newest = inFolder.sort((a,b) => b.id - a.id)[0];
+    autoCreating = false;
+    if (!newest) return;
+    await selectNote(newest.id);
+    // selectNote wrote the server-side (empty) values; restore what they typed
+    editor.value = pendingBody;
+    titleInput.value = pendingTitle;
+    editor.focus();
+    editor.selectionStart = editor.selectionEnd = editor.value.length;
+    dirty = true;
+    if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => autoSave(), 1500);
+  }, 300);
 }
 
 async function autoSave() {
@@ -1247,7 +1436,7 @@ async function autoSave() {
     // Use revision 0 (force-update) for remote notebooks where our
     // local revision may be stale; use real revision for local notebooks
     const nb = notebooks[n.notebookId];
-    const isLocal = nb && nb.host === `~${SHIP}`;
+    const isLocal = nb && SHIP && nb.host.replace(/^~/, "") === SHIP.replace(/^~/, "");
     const rev = isLocal ? savedRevision : 0;
     await pokeAction({ "update-note": { notebookId: n.notebookId, noteId: activeNoteId, bodyMd: body, expectedRevision: rev } });
     if (isLocal) savedRevision++;
@@ -1257,6 +1446,7 @@ async function autoSave() {
     notes[activeNoteId] = { ...n, title, bodyMd: body, revision: savedRevision };
     dirty = false;
     document.getElementById("save-status").textContent = "Saved";
+    document.getElementById("note-rev").textContent = `rev ${savedRevision}`;
     setTimeout(() => { if (!dirty) document.getElementById("save-status").textContent = ""; }, 2000);
     renderItems();
   } catch(e) {
@@ -1277,8 +1467,17 @@ function closeOverflow() {
   document.getElementById("overflow-menu").classList.remove("open");
 }
 
+function toggleNotebookSettings() {
+  document.getElementById("notebook-settings-menu").classList.toggle("open");
+}
+
+function closeNotebookSettings() {
+  document.getElementById("notebook-settings-menu").classList.remove("open");
+}
+
 document.addEventListener("click", (e) => {
-  if (!e.target.closest(".overflow-wrap")) closeOverflow();
+  if (!e.target.closest("#overflow-wrap")) closeOverflow();
+  if (!e.target.closest("#notebook-settings-wrap")) closeNotebookSettings();
 });
 
 async function deleteNote() {
@@ -1380,12 +1579,12 @@ async function publishNote() {
     "publish-note": { notebookId: activeNotebookId, noteId: activeNoteId, html }
   });
 
-  const pubUrl = `${BASE_URL}/notes/pub/${activeNoteId}`;
-  publishedIds.add(activeNoteId);
+  const url = pubUrl(activeNotebookFlag, activeNoteId);
+  publishedIds.add(pubKey(activeNotebookFlag, activeNoteId));
   document.getElementById("publish-btn").style.display = "none";
   document.getElementById("unpublish-btn").style.display = "";
   document.getElementById("view-published-btn").style.display = "";
-  window.open(pubUrl, '_blank');
+  window.open(url, '_blank');
 }
 
 async function unpublishNote() {
@@ -1396,15 +1595,15 @@ async function unpublishNote() {
     "unpublish-note": { notebookId: activeNotebookId, noteId: activeNoteId }
   });
 
-  publishedIds.delete(activeNoteId);
+  publishedIds.delete(pubKey(activeNotebookFlag, activeNoteId));
   document.getElementById("publish-btn").style.display = "";
   document.getElementById("unpublish-btn").style.display = "none";
   document.getElementById("view-published-btn").style.display = "none";
 }
 
 function viewPublished() {
-  if (!activeNoteId) return;
-  window.open(`${BASE_URL}/notes/pub/${activeNoteId}`, '_blank');
+  if (!activeNoteId || !activeNotebookFlag) return;
+  window.open(pubUrl(activeNotebookFlag, activeNoteId), '_blank');
 }
 
 // ── Dirty state ──────────────────────────────────────────────────────────
@@ -1423,6 +1622,7 @@ async function confirmDirty() {
 function clearEditor() {
   document.getElementById("note-title-input").value = "";
   document.getElementById("editor").value = "";
+  document.getElementById("note-rev").textContent = "";
   document.getElementById("overflow-wrap").style.display = "none";
   clearDirty();
 }
@@ -1432,7 +1632,23 @@ function openModal(type) {
   const box = document.getElementById("modal-box");
   const backdrop = document.getElementById("modal-backdrop");
 
-  if (type === "add-notebook") {
+  if (type === "desktop-sync") {
+    box.innerHTML = `
+      <h3>Desktop sync app</h3>
+      <p style="font-size:13px;color:var(--text-muted);line-height:1.5;margin-bottom:14px">
+        A menubar app that keeps your notes mirrored to a folder of <code>.md</code> files on your Mac,
+        so you can read and edit them with any Markdown editor.
+      </p>
+      <p style="font-size:12px;color:var(--text-muted);line-height:1.5;margin-bottom:14px;opacity:0.8">
+        Downloads coming soon — check
+        <a href="https://github.com/arthyn/notes-prototype/releases" target="_blank" style="color:var(--accent)">GitHub Releases</a>
+        for the latest .dmg.
+      </p>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" onclick="closeModal()">Close</button>
+      </div>
+    `;
+  } else if (type === "add-notebook") {
     box.innerHTML = `
       <h3>Add Notebook</h3>
       <div class="modal-choices">
@@ -1470,6 +1686,19 @@ function openModal(type) {
       </div>
     `;
     box.querySelector("#m-flag").addEventListener("keydown", e => { if (e.key==="Enter") joinNotebook(); });
+  } else if (type === "rename-notebook") {
+    if (!activeNotebookId) return;
+    const nb = notebooks[activeNotebookId];
+    if (!nb) return;
+    box.innerHTML = `
+      <h3>Rename Notebook</h3>
+      <input id="m-title" type="text" value="${esc(nb.title)}" autofocus />
+      <div class="modal-actions">
+        <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="renameNotebook()">Rename</button>
+      </div>
+    `;
+    box.querySelector("#m-title").addEventListener("keydown", e => { if (e.key==="Enter") renameNotebook(); });
   } else if (type === "new-folder") {
     if (!activeNotebookId) { alert("Select a notebook first"); return; }
     const rootId = rootFolderId();
@@ -1507,6 +1736,71 @@ async function createNotebook() {
   document.getElementById("modal-backdrop").classList.remove("open");
   await pokeAction({ "create-notebook": title });
   setTimeout(() => loadNotebooks(), 300);
+}
+
+function openRenameNotebook() {
+  closeNotebookSettings();
+  if (!activeNotebookId) return;
+  openModal("rename-notebook");
+}
+
+async function renameNotebook() {
+  const title = document.getElementById("m-title")?.value?.trim();
+  if (!title || !activeNotebookId) return;
+  document.getElementById("modal-backdrop").classList.remove("open");
+  await pokeAction({ "rename-notebook": { notebookId: activeNotebookId, title } });
+  setTimeout(() => loadNotebooks(), 300);
+}
+
+async function deleteNotebook() {
+  closeNotebookSettings();
+  if (!activeNotebookId) return;
+  const nb = notebooks[activeNotebookId];
+  if (!nb) return;
+  if (!confirm(`Delete notebook "${nb.title}"? This cannot be undone.`)) return;
+  await pokeAction({ "delete-notebook": { notebookId: activeNotebookId } });
+  activeNotebookId = null;
+  activeNotebookFlag = null;
+  activeFolderId = null;
+  activeNoteId = null;
+  clearEditor();
+  setTimeout(async () => {
+    await loadNotebooks();
+    renderItems();
+  }, 300);
+}
+
+async function toggleNotebookVisibility() {
+  closeNotebookSettings();
+  if (!activeNotebookId) return;
+  const nb = notebooks[activeNotebookId];
+  if (!nb) return;
+  const next = nb.visibility === "public" ? "private" : "public";
+  await pokeAction({ "set-visibility": { notebookId: activeNotebookId, visibility: next } });
+  // Optimistic local update
+  nb.visibility = next;
+  updateHeader();
+}
+
+async function leaveRemoteNotebook() {
+  closeNotebookSettings();
+  if (!activeNotebookId || !activeNotebookFlag) return;
+  const nb = notebooks[activeNotebookId];
+  if (!nb) return;
+  if (!confirm(`Leave notebook "${nb.title}"?`)) return;
+  const slash = activeNotebookFlag.indexOf("/");
+  const ship = activeNotebookFlag.slice(0, slash);
+  const name = activeNotebookFlag.slice(slash + 1);
+  await pokeAction({ "leave-remote": { ship, name } });
+  activeNotebookId = null;
+  activeNotebookFlag = null;
+  activeFolderId = null;
+  activeNoteId = null;
+  clearEditor();
+  setTimeout(async () => {
+    await loadNotebooks();
+    renderItems();
+  }, 300);
 }
 
 async function joinNotebook() {
@@ -1567,9 +1861,134 @@ function mobileBack(to) {
 function esc(s) {
   return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 }
+function setConnectionState(state) {
+  const el = document.getElementById("conn-label");
+  if (!el) return;
+  el.classList.remove("reconnecting", "disconnected");
+  if (state === "reconnecting") {
+    el.textContent = "Reconnecting…";
+    el.classList.add("reconnecting");
+  } else if (state === "disconnected") {
+    el.textContent = "Disconnected";
+    el.classList.add("disconnected");
+  } else {
+    el.textContent = "Notebooks";
+  }
+}
 function icon(id) {
   return `<svg class="icon"><use href="#i-${id}"/></svg>`;
 }
+function notePreview(bodyMd) {
+  if (!bodyMd) return "";
+  // Strip common markdown syntax, collapse whitespace, trim.
+  const s = String(bodyMd)
+    .slice(0, 400)
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/^[>\-*+]\s+/gm, "")
+    .replace(/!\[([^\]]*)\]\([^)]+\)/g, "$1")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/[*_`~]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  return s.slice(0, 140);
+}
+
+// ── Column resizers ──────────────────────────────────────────────────────
+const COLUMN_CONSTRAINTS = {
+  sidebar:       { min: 160, max: 360 },
+  "notes-panel": { min: 200, max: 480 },
+};
+const EDITOR_MIN_WIDTH = 320;
+const WIDTHS_KEY = "notes-column-widths";
+
+function restoreColumnWidths() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(WIDTHS_KEY) || "{}");
+    for (const [cls, w] of Object.entries(saved)) {
+      const el = document.querySelector("." + cls);
+      const c = COLUMN_CONSTRAINTS[cls];
+      if (el && c && typeof w === "number") {
+        el.style.width = Math.max(c.min, Math.min(c.max, w)) + "px";
+      }
+    }
+  } catch(_) {}
+}
+
+function persistColumnWidths() {
+  const out = {};
+  for (const cls of Object.keys(COLUMN_CONSTRAINTS)) {
+    const el = document.querySelector("." + cls);
+    if (el) out[cls] = el.offsetWidth;
+  }
+  try { localStorage.setItem(WIDTHS_KEY, JSON.stringify(out)); } catch(_) {}
+}
+
+function setupResizers() {
+  document.querySelectorAll(".resizer").forEach(resizer => {
+    const cls = resizer.dataset.target;
+    const target = document.querySelector("." + cls);
+    const constraint = COLUMN_CONSTRAINTS[cls];
+    if (!target || !constraint) return;
+
+    let startX = 0;
+    let startWidth = 0;
+
+    const onMove = (e) => {
+      const layoutW = document.querySelector(".layout").offsetWidth;
+      // Reserve editor min + the other fixed column's current width
+      const otherCls = cls === "sidebar" ? "notes-panel" : "sidebar";
+      const otherW = document.querySelector("." + otherCls).offsetWidth;
+      const maxByLayout = layoutW - otherW - EDITOR_MIN_WIDTH;
+      const max = Math.min(constraint.max, maxByLayout);
+      const min = constraint.min;
+      let next = startWidth + (e.clientX - startX);
+      if (next < min) next = min;
+      if (next > max) next = max;
+      target.style.width = next + "px";
+    };
+
+    const onUp = () => {
+      document.removeEventListener("pointermove", onMove);
+      document.removeEventListener("pointerup", onUp);
+      resizer.classList.remove("dragging");
+      document.body.classList.remove("resizing");
+      persistColumnWidths();
+    };
+
+    resizer.addEventListener("pointerdown", (e) => {
+      if (window.innerWidth <= 640) return;
+      e.preventDefault();
+      startX = e.clientX;
+      startWidth = target.offsetWidth;
+      resizer.classList.add("dragging");
+      document.body.classList.add("resizing");
+      document.addEventListener("pointermove", onMove);
+      document.addEventListener("pointerup", onUp);
+    });
+  });
+}
+
+function toggleSidebar() {
+  document.body.classList.toggle("sidebar-collapsed");
+  try {
+    localStorage.setItem(
+      "sidebar-collapsed",
+      document.body.classList.contains("sidebar-collapsed") ? "1" : "0"
+    );
+  } catch(_) {}
+}
+
+function restoreSidebarCollapsed() {
+  try {
+    if (localStorage.getItem("sidebar-collapsed") === "1") {
+      document.body.classList.add("sidebar-collapsed");
+    }
+  } catch(_) {}
+}
+
+restoreSidebarCollapsed();
+restoreColumnWidths();
+setupResizers();
 
 // Auto-connect when served from a ship
 if (location.protocol !== "file:" && location.hostname) {

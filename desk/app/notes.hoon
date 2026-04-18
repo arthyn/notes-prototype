@@ -6,7 +6,7 @@
 ::
 |%
 +$  card  card:agent:gall
-+$  current-state  state-2:notes
++$  current-state  state-4:notes
 --
 ::
 =|  current-state
@@ -77,7 +77,7 @@
 ::  helper core
 ::
 |_  [=bowl:gall cards=(list card)]
-++  dummy  'dot-right-v1'
+++  dummy  'tighter-nb-item-padding-v1'
 ++  abet  [(flop cards) state]
 ++  cor   .
 ++  emit  |=(=card cor(cards [card cards]))
@@ -98,15 +98,27 @@
     ?:  ?=(^ raw)
       ;;(@ -.raw)
     0
-  ::  state-2: current format
-  ?:  =(tag %2)
+  ::  state-4: current format
+  ?:  =(tag %4)
     =/  s=current-state  !<(current-state old)
     =.  state  s
+    cor
+  ::  state-3: migrate by adding empty visibilities map (all default to private)
+  ?:  =(tag %3)
+    =/  s=state-3:notes  !<(state-3:notes old)
+    =.  state  [%4 books.s next-id.s published.s ~]
+    cor
+  ::  state-2: migrate by dropping published entries
+  ::  (old map was keyed by bare note-id — cannot be safely re-keyed post-hoc
+  ::  because different notebooks may have the same note-id)
+  ?:  =(tag %2)
+    =/  s=state-2:notes  !<(state-2:notes old)
+    =.  state  [%4 books.s next-id.s ~ ~]
     cor
   ::  state-1: migrate by adding empty published map
   ?:  =(tag %1)
     =/  s=state-1:notes  !<(state-1:notes old)
-    =.  state  [%2 books.s next-id.s ~]
+    =.  state  [%4 books.s next-id.s ~ ~]
     cor
   ::  state-0 or unknown: start fresh
   ::  acceptable during this migration; task says single-player breakage is ok
@@ -120,13 +132,25 @@
     =/  req  !<([eyre-id=@ta =inbound-request:eyre] vase)
     =/  url=@t  url.request.inbound-request.req
     =/  url-tape=tape  (trip url)
-    ::  check if this is a published note request: /notes/pub/{note-id}
+    ::  check if this is a published note request: /notes/pub/~ship/name/{note-id}
     =/  pub-html=(unit @t)
       ?.  =("/notes/pub/" (scag 11 url-tape))  ~
-      =/  id-tape=tape  (slag 11 url-tape)
-      =/  nid=@ud  (fall (rush (crip id-tape) dem) 0)
-      ?:  =(0 nid)  ~
-      (~(get by published.state) nid)
+      =/  rest=tape  (slag 11 url-tape)
+      ::  drop any query string
+      =/  path-only=tape
+        =/  qi=(unit @ud)  (find "?" rest)
+        ?~  qi  rest
+        (scag u.qi rest)
+      ::  parse /~ship/name/note-id via stab
+      =/  pax=path  (stab (crip (weld "/" path-only)))
+      ?.  ?=([@ @ @ ~] pax)  ~
+      =/  ship-u=(unit @p)   (slaw %p i.pax)
+      =/  nid-u=(unit @ud)   (slaw %ud i.t.t.pax)
+      ?~  ship-u  ~
+      ?~  nid-u   ~
+      ?:  =(0 u.nid-u)  ~
+      =/  =flag:notes  [u.ship-u i.t.pax]
+      (~(get by published.state) [flag u.nid-u])
     ::  serve published note or the UI
     =/  data=octs
       ?^  pub-html
@@ -154,11 +178,18 @@
     ?:  ?=(%leave-remote -.act)
       (leave-remote flag.act)
     ::  publish/unpublish are local-only, not forwarded to remote hosts
+    ::  resolve the notebook flag so published is keyed [flag note-id]
     ?:  ?=(%publish-note -.act)
-      =.  published.state  (~(put by published.state) note-id.act html.act)
+      =/  =flag:notes
+        ?^  target.ra  u.target.ra
+        (find-flag-by-nid notebook-id.act)
+      =.  published.state  (~(put by published.state) [flag note-id.act] html.act)
       cor
     ?:  ?=(%unpublish-note -.act)
-      =.  published.state  (~(del by published.state) note-id.act)
+      =/  =flag:notes
+        ?^  target.ra  u.target.ra
+        (find-flag-by-nid notebook-id.act)
+      =.  published.state  (~(del by published.state) [flag note-id.act])
       cor
     ::  use explicit flag from _flag field if present,
     ::  otherwise fall back to notebook-id lookup
@@ -275,10 +306,13 @@
       %+  murn  ~(tap by books.state)
       |=  [=flag:notes [=net:notes =notebook-state:notes]]
       ?.  (can-view-flag flag src.bowl)  ~
+      =/  vis=visibility:notes
+        (fall (~(get by visibilities.state) flag) %private)
       =-  `(pairs:enjs:format -)
       :~  ['host' s+(scot %p ship.flag)]
           ['flagName' s+name.flag]
           ['notebook' (notebook:enjs:notes-json notebook.notebook-state)]
+          ['visibility' s+(scot %tas vis)]
       ==
     ``json+!>([%a nbs])
     ::  /x/v0/notebook/<ship>/<name>
@@ -354,12 +388,17 @@
           ['role' s+(scot %tas r)]
       ==
     ``json+!>([%a mlist])
-    ::  /x/v0/published — list of published note IDs
+    ::  /x/v0/published — list of {host, flagName, noteId} for each published note
       [%x %v0 %published ~]
-    =/  ids=(list json)
+    =/  items=(list json)
       %+  turn  ~(tap in ~(key by published.state))
-      numb:enjs:format
-    ``json+!>([%a ids])
+      |=  [=flag:notes note-id=@ud]
+      %-  pairs:enjs:format
+      :~  ['host' s+(scot %p ship.flag)]
+          ['flagName' s+name.flag]
+          ['noteId' (numb:enjs:format note-id)]
+      ==
+    ``json+!>([%a items])
   ==
 ::
 ++  agent
@@ -426,6 +465,8 @@
   ?-  -.act
       %create-notebook      0
       %rename-notebook      notebook-id.act
+      %delete-notebook      notebook-id.act
+      %set-visibility       notebook-id.act
       %join                 notebook-id.act
       %leave                notebook-id.act
       %join-remote          0
@@ -452,6 +493,8 @@
   ?-  -.cmd
       %create-notebook      0
       %rename-notebook      notebook-id.cmd
+      %delete-notebook      notebook-id.cmd
+      %set-visibility       notebook-id.cmd
       %join                 notebook-id.cmd
       %leave                notebook-id.cmd
       %join-remote          0
@@ -476,6 +519,8 @@
   ?-  -.act
       %create-notebook      [%create-notebook title.act actor]
       %rename-notebook      [%rename-notebook notebook-id.act title.act actor]
+      %delete-notebook      [%delete-notebook notebook-id.act actor]
+      %set-visibility       [%set-visibility notebook-id.act visibility.act actor]
       %join                 [%join notebook-id.act actor]
       %leave                [%leave notebook-id.act actor]
       %join-remote          [%join-remote flag.act actor]
@@ -627,6 +672,8 @@
         %create-notebook
       ~|(%se-poke-create-via-command !!)
         %rename-notebook      (se-rename-notebook cmd)
+        %delete-notebook      (se-delete-notebook cmd)
+        %set-visibility       (se-set-visibility cmd)
         %join                 (se-join cmd)
         %leave                (se-leave cmd)
         %join-remote          (se-join-remote cmd)
@@ -654,10 +701,48 @@
     =.  notebook.notebook-state  nb
     (se-update [%notebook-renamed notebook-id.cmd title.cmd actor.cmd])
   ::
+  ++  se-delete-notebook
+    |=  cmd=command:notes
+    ?>  ?=(%delete-notebook -.cmd)
+    ^+  se-core
+    ?>  (se-is-owner actor.cmd)
+    =/  nid=@ud  id.notebook.notebook-state
+    ::  clean up published entries for this notebook
+    =.  published.state
+      %-  malt
+      %+  skip  ~(tap by published.state)
+      |=  [k=[=flag:notes note-id=@ud] v=@t]
+      =(flag.k flag)
+    ::  clean up visibility entry for this notebook
+    =.  visibilities.state  (~(del by visibilities.state) flag)
+    ::  emit deletion update (broadcasts to subscribers)
+    =.  se-core  (se-update [%notebook-deleted nid actor.cmd])
+    ::  mark for deletion — se-abet removes the book from state
+    se-core(gone &)
+  ::
+  ++  se-set-visibility
+    |=  cmd=command:notes
+    ?>  ?=(%set-visibility -.cmd)
+    ^+  se-core
+    ?>  (se-is-owner actor.cmd)
+    =.  visibilities.state
+      (~(put by visibilities.state) flag visibility.cmd)
+    (se-update [%notebook-visibility-changed notebook-id.cmd visibility.cmd actor.cmd])
+  ::
+  ::  +se-visibility: current visibility (private by default)
+  ++  se-visibility
+    ^-  visibility:notes
+    (fall (~(get by visibilities.state) flag) %private)
+  ::
   ++  se-join
     |=  cmd=command:notes
     ?>  ?=(%join -.cmd)
     ^+  se-core
+    ::  private notebooks reject joins from non-members
+    ?:  ?&  =(%private se-visibility)
+            !(se-can-view actor.cmd)
+        ==
+      ~|(notebook-private+flag !!)
     =/  new-mbrs=notebook-members:notes
       (~(put by notebook-members.notebook-state) actor.cmd %editor)
     =.  notebook-members.notebook-state  new-mbrs
@@ -677,6 +762,11 @@
     |=  cmd=command:notes
     ?>  ?=(%join-remote -.cmd)
     ^+  se-core
+    ::  private notebooks reject joins from non-members
+    ?:  ?&  =(%private se-visibility)
+            !(se-can-view actor.cmd)
+        ==
+      ~|(notebook-private+flag !!)
     =/  nid=@ud  id.notebook.notebook-state
     =/  new-mbrs=notebook-members:notes
       (~(put by notebook-members.notebook-state) actor.cmd %editor)
@@ -1139,6 +1229,14 @@
         %notebook-renamed
       =.  notebook.notebook-state
         notebook.notebook-state(title title.upd, updated-at now.bowl)
+      no-core
+    ::
+        %notebook-deleted
+      ::  host deleted the notebook — mark for local removal
+      no-core(gone &)
+    ::
+        %notebook-visibility-changed
+      ::  host-side policy; subscribers only reflect it in UI
       no-core
     ::
         %member-joined

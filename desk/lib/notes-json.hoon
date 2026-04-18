@@ -70,6 +70,17 @@
           ['title' s+title.evt]
           ['actor' s+(scot %p actor.evt)]
       ==
+        %notebook-deleted
+      :~  ['type' s+'notebook-deleted']
+          ['notebookId' (numb notebook-id.evt)]
+          ['actor' s+(scot %p actor.evt)]
+      ==
+        %notebook-visibility-changed
+      :~  ['type' s+'notebook-visibility-changed']
+          ['notebookId' (numb notebook-id.evt)]
+          ['visibility' s+(scot %tas visibility.evt)]
+          ['actor' s+(scot %p actor.evt)]
+      ==
         %member-joined
       :~  ['type' s+'member-joined']
           ['notebookId' (numb notebook-id.evt)]
@@ -216,6 +227,18 @@
         %'rename-notebook'
       :-  %rename-notebook
       ((ot ~[['notebookId' ni] ['title' so]]) val)
+    ::
+        %'delete-notebook'
+      :-  %delete-notebook
+      ((ot ~[['notebookId' ni]]) val)
+    ::
+        %'set-visibility'
+      =/  raw=[nid=@ud vis=@t]
+        ((ot ~[['notebookId' ni] ['visibility' so]]) val)
+      ?.  ?|(=('public' vis.raw) =('private' vis.raw))
+        ~|(bad-visibility+vis.raw !!)
+      :-  %set-visibility
+      [nid.raw ?:(=('public' vis.raw) %public %private)]
     ::
         %'join'
       :-  %join

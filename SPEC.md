@@ -358,6 +358,28 @@ Keep v1 tight: **great writing + reliable shared Markdown notebooks**.
 
 ---
 
+## Editor & UI Roadmap
+
+Post-v1 UX iteration. Not blocking v1 release; tracked here until scheduled.
+
+### Editor experience
+- Move title editing into the editor pane (inline, h1-style) instead of a separate toolbar input
+- Give the editor surface more breathing room (padding, max-width)
+- Font-size controls (increase / decrease) with a larger default size
+- Zen mode — collapse all UI chrome and leave only the editor
+- Formatting keyboard shortcuts (⌘B bold, ⌘I italic, ⌘K link, etc.)
+
+### Navigation & content
+- Folder-path breadcrumb in the editor header for the selected note
+- Quick switcher ("jump to") opened with ⌘E / ⌘K — leap-style fuzzy nav across notebooks/folders/notes
+- Full-text search across notes in a notebook
+- Wiki-links (`[[Note Name]]`) + backlinks panel
+
+### Polish
+- Audit and refine mobile styles across all views
+
+---
+
 ## v1.1 Extension: Knowledge Compiler Mode (Self-Contained)
 
 ### Positioning

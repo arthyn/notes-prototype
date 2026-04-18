@@ -1,6 +1,6 @@
 :~
   title+'Notes'
-  info+'Collaborative markdown notebooks'
+  info+'Collaborative markdown notebooks — alpha v0.1.0'
   color+0x7c.6af7
   site+/notes
   base+'notes'
