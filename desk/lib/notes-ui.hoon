@@ -23,6 +23,7 @@
     --success: #4caf82;
     --font: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     --mono: "JetBrains Mono", "Fira Code", "Cascadia Code", monospace;
+    --editor-font-size: 16px;
   }
 
   body {
@@ -195,6 +196,17 @@
   }
   .icon-btn:hover { color: var(--text); background: var(--surface2); }
 
+  /* ── font-size toolbar buttons (A- / A+) ── */
+  .font-size-btn { font-family: var(--font); font-weight: 600; }
+  .font-size-btn .fs-glyph {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 16px; height: 16px; line-height: 1;
+    opacity: 0.65;
+  }
+  .font-size-btn:hover .fs-glyph { opacity: 0.95; }
+  .font-size-btn .fs-glyph-sm { font-size: 11px; }
+  .font-size-btn .fs-glyph-lg { font-size: 15px; }
+
   /* ── notes list panel ── */
   .notes-panel {
     width: 280px;
@@ -272,17 +284,52 @@
     display: flex; align-items: center; gap: 8px;
     flex-shrink: 0;
   }
+  .editor-toolbar .spacer { flex: 1; }
+
+  /* Floating bottom-right toolbar on desktop */
+  @media (min-width: 641px) {
+    .editor-toolbar {
+      position: fixed;
+      bottom: 0;
+      right: 0;
+      height: auto;
+      width: auto;
+      padding: 4px 6px;
+      gap: 2px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-right: 0;
+      border-bottom: 0;
+      border-top-left-radius: 8px;
+      z-index: 50;
+    }
+    .editor-toolbar .spacer,
+    .editor-toolbar .back-btn { display: none; }
+    .editor-toolbar .save-status { padding: 0 4px; }
+    .editor-toolbar .note-rev { padding: 0 4px; }
+    .editor-toolbar .overflow-menu {
+      top: auto;
+      bottom: 100%;
+      margin-top: 0;
+      margin-bottom: 6px;
+    }
+  }
   #note-title-input {
-    flex: 1;
+    display: block;
+    width: 100%;
     background: none;
     border: none;
     outline: none;
     color: var(--text);
-    font-size: 16px;
-    font-weight: 600;
     font-family: var(--font);
+    font-size: calc(var(--editor-font-size) * 1.875);
+    font-weight: 700;
+    line-height: 1.2;
+    padding: 0;
+    margin: 0 0 24px 0;
+    box-sizing: border-box;
   }
-  #note-title-input::placeholder { color: var(--text-muted); font-weight: 400; }
+  #note-title-input::placeholder { color: var(--text-muted); font-weight: 700; }
   .save-btn {
     background: var(--accent); border: none; color: #fff;
     padding: 5px 12px; border-radius: 5px; cursor: pointer;
@@ -326,13 +373,16 @@
     border: 1px solid var(--border);
     border-radius: 6px;
     box-shadow: 0 8px 24px rgba(0,0,0,0.4);
-    min-width: 140px;
+    min-width: 180px;
+    white-space: nowrap;
     z-index: 50;
     padding: 4px 0;
   }
   .overflow-menu.open { display: block; }
   .overflow-menu button {
-    display: block;
+    display: flex;
+    align-items: center;
+    gap: 10px;
     width: 100%;
     text-align: left;
     background: none;
@@ -346,28 +396,62 @@
   .overflow-menu button:hover { background: var(--surface2); }
   .overflow-menu button.danger { color: var(--danger); }
   .overflow-menu button.danger:hover { background: rgba(224,92,92,0.1); }
+  .overflow-menu .menu-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px; height: 16px;
+    flex-shrink: 0;
+    opacity: 0.7;
+  }
+  .overflow-menu button:hover .menu-icon { opacity: 0.95; }
+  .overflow-menu .menu-divider {
+    height: 1px;
+    background: var(--border);
+    margin: 4px 6px;
+  }
 
-  #editor {
+  .editor-scroll {
     flex: 1;
-    resize: none;
+    overflow-y: auto;
+    min-height: 0;
     background: var(--bg);
+  }
+  .editor-wrap {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 48px 56px 96px;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+  }
+  @media (min-width: 641px) and (max-width: 980px) {
+    .editor-wrap { padding: 48px 24px 96px; }
+  }
+  #editor {
+    display: block;
+    width: 100%;
+    resize: none;
+    background: transparent;
     color: var(--text);
     border: none;
     outline: none;
-    padding: 20px 24px;
+    padding: 0;
+    margin: 0;
     font-family: var(--mono);
-    font-size: 13.5px;
+    font-size: var(--editor-font-size);
     line-height: 1.7;
-    overflow-y: auto;
+    min-height: 60vh;
+    overflow: hidden;
+    box-sizing: border-box;
   }
   #editor::placeholder { color: var(--text-muted); font-family: var(--font); }
 
   #preview {
-    flex: 1;
-    padding: 20px 24px;
-    overflow-y: auto;
-    font-size: 14px;
+    padding: 0;
+    font-size: var(--editor-font-size);
     line-height: 1.7;
+    min-height: 60vh;
   }
   #preview h1 { font-size: 1.8em; margin: 0.5em 0 0.3em; border-bottom: 1px solid var(--border); padding-bottom: 0.2em; }
   #preview h2 { font-size: 1.4em; margin: 0.5em 0 0.3em; border-bottom: 1px solid var(--border); padding-bottom: 0.2em; }
@@ -460,6 +544,26 @@
   }
   .back-btn:hover { background: var(--surface2); }
 
+  /* ── zen mode ── */
+  #zen-exit-btn {
+    display: none;
+    position: fixed;
+    bottom: 0; right: 0;
+    z-index: 200;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-right: 0;
+    border-bottom: 0;
+    border-top-left-radius: 8px;
+    padding: 10px 12px;
+  }
+  body.zen-mode .sidebar,
+  body.zen-mode .notes-panel,
+  body.zen-mode .resizer,
+  body.zen-mode .editor-toolbar { display: none; }
+  body.zen-mode .editor-panel { flex: 1; }
+  body.zen-mode #zen-exit-btn { display: inline-flex; }
+
   /* ── mobile responsive ── */
   @media (max-width: 640px) {
     .back-btn { display: inline-flex; align-items: center; }
@@ -501,6 +605,9 @@
     /* Bigger tap targets across the board */
     .icon-btn { padding: 10px; }
     .icon-btn .icon { width: 20px; height: 20px; }
+    .font-size-btn .fs-glyph { width: 20px; height: 20px; }
+    .font-size-btn .fs-glyph-sm { font-size: 14px; }
+    .font-size-btn .fs-glyph-lg { font-size: 19px; }
     .back-btn { font-size: 17px; padding: 10px 12px; }
 
     /* Hamburger toggles the existing actions cluster; it sits above the
@@ -551,11 +658,11 @@
     .nb-item .nb-flag { pointer-events: none; }
 
     .editor-toolbar { height: 52px; padding: 0 8px; gap: 4px; }
-    #note-title-input { font-size: 18px; min-width: 0; }
     .save-status { font-size: 13px; }
     .note-rev { font-size: 12px; }
-    #editor { padding: 16px 14px; font-size: 16px; line-height: 1.6; }
-    #preview { padding: 16px 14px; font-size: 16px; }
+    .editor-wrap { padding: 24px 18px 72px; max-width: 100%; }
+    #note-title-input { font-size: calc(var(--editor-font-size) * 1.5); margin-bottom: 16px; }
+    #editor { line-height: 1.65; }
 
     .sidebar { overflow-y: auto; }
     .notes-panel { overflow-y: auto; }
@@ -638,6 +745,25 @@
     <line x1="2.5" y1="8" x2="13.5" y2="8"/>
     <line x1="2.5" y1="12" x2="13.5" y2="12"/>
   </symbol>
+  <symbol id="i-expand" viewBox="0 0 16 16">
+    <polyline points="9,2.5 13.5,2.5 13.5,7"/>
+    <polyline points="7,13.5 2.5,13.5 2.5,9"/>
+    <line x1="13.5" y1="2.5" x2="9" y2="7"/>
+    <line x1="2.5" y1="13.5" x2="7" y2="9"/>
+  </symbol>
+  <symbol id="i-collapse" viewBox="0 0 16 16">
+    <polyline points="13,6.5 8.5,6.5 8.5,2"/>
+    <polyline points="3,9.5 7.5,9.5 7.5,14"/>
+    <line x1="13" y1="2" x2="8.5" y2="6.5"/>
+    <line x1="3" y1="14" x2="7.5" y2="9.5"/>
+  </symbol>
+  <symbol id="i-trash" viewBox="0 0 16 16">
+    <line x1="2.5" y1="4" x2="13.5" y2="4"/>
+    <polyline points="3.5,4 4.5,13.5 11.5,13.5 12.5,4"/>
+    <path d="M6 4 V2.5 H10 V4"/>
+    <line x1="6.5" y1="6.5" x2="6.5" y2="11.5"/>
+    <line x1="9.5" y1="6.5" x2="9.5" y2="11.5"/>
+  </symbol>
 </svg>
 
 <!-- Connect panel (shown until URL + auth set) -->
@@ -667,7 +793,7 @@
     <div class="sidebar-brand">
       <svg class="icon brand-icon"><use href="#i-notebook"/></svg>
       <span class="brand-name">Notes</span>
-      <span class="sidebar-version">alpha v0.1.0</span>
+      <span class="sidebar-version">alpha v0.2.0</span>
       <button class="icon-btn sidebar-menu-btn" onclick="toggleSidebarMenu()" title="More"><svg class="icon"><use href="#i-menu"/></svg></button>
     </div>
   </div>
@@ -707,17 +833,33 @@
   <div class="editor-panel">
     <div class="editor-toolbar">
       <button class="back-btn" onclick="mobileBack('notes')" title="Back to notes">← </button>
-      <input id="note-title-input" type="text" placeholder="Untitled" oninput="onEditorInput()" />
+      <span class="spacer"></span>
       <span class="save-status" id="save-status"></span>
       <span class="note-rev" id="note-rev"></span>
+      <button class="icon-btn" id="zen-btn" onclick="toggleZen()" title="Zen mode"><svg class="icon"><use href="#i-expand"/></svg></button>
       <button class="icon-btn" id="preview-btn" onclick="togglePreview()" title="Preview"><svg class="icon"><use href="#i-eye"/></svg></button>
       <button class="icon-btn" id="view-published-btn" onclick="viewPublished()" title="View published" style="display:none"><svg class="icon"><use href="#i-globe"/></svg></button>
-      <div class="overflow-wrap" id="overflow-wrap" style="display:none">
+      <div class="overflow-wrap" id="overflow-wrap">
         <button class="icon-btn" onclick="toggleOverflow()" title="More"><svg class="icon"><use href="#i-ellipsis"/></svg></button>
         <div class="overflow-menu" id="overflow-menu">
-          <button id="publish-btn" onclick="publishNote();">Publish to web</button>
-          <button id="unpublish-btn" onclick="unpublishNote();" style="display:none">Unpublish</button>
-          <button onclick="deleteNote();" class="danger">Delete note</button>
+          <button onclick="adjustEditorSize(-1)">
+            <span class="menu-icon"><span class="fs-glyph fs-glyph-sm">A</span></span>Smaller text
+          </button>
+          <button onclick="adjustEditorSize(1)">
+            <span class="menu-icon"><span class="fs-glyph fs-glyph-lg">A</span></span>Larger text
+          </button>
+          <div class="menu-section" id="overflow-note-section" style="display:none">
+            <div class="menu-divider"></div>
+            <button id="publish-btn" onclick="publishNote();">
+              <span class="menu-icon"><svg class="icon"><use href="#i-globe"/></svg></span>Publish to web
+            </button>
+            <button id="unpublish-btn" onclick="unpublishNote();" style="display:none">
+              <span class="menu-icon"><svg class="icon"><use href="#i-globe"/></svg></span>Unpublish
+            </button>
+            <button onclick="deleteNote();" class="danger">
+              <span class="menu-icon"><svg class="icon"><use href="#i-trash"/></svg></span>Delete note
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -726,10 +868,18 @@
       <button id="conflict-keep" onclick="resolveConflictKeepMine()" class="btn btn-secondary">Keep mine</button>
       <button id="conflict-use" onclick="resolveConflictUseRemote()" class="btn btn-secondary">Use remote</button>
     </div>
-    <textarea id="editor" placeholder="Write in markdown…" oninput="onEditorInput()"></textarea>
-    <div id="preview" style="display:none"></div>
+    <div class="editor-scroll">
+      <div class="editor-wrap">
+        <input id="note-title-input" type="text" placeholder="Untitled" oninput="onEditorInput()" />
+        <textarea id="editor" placeholder="Start writing…" oninput="onEditorInput()"></textarea>
+        <div id="preview" style="display:none"></div>
+      </div>
+    </div>
   </div>
 </div>
+
+<!-- Zen-mode exit button (only visible when body.zen-mode) -->
+<button id="zen-exit-btn" class="icon-btn" onclick="toggleZen()" title="Exit zen mode (Esc)"><svg class="icon"><use href="#i-collapse"/></svg></button>
 
 <!-- Modals -->
 <div class="modal-backdrop" id="modal-backdrop" onclick="closeModal(event)">
@@ -1031,7 +1181,7 @@ function handleEvent(msg) {
     else if (type?.startsWith("folder-")) loadFolders(activeNotebookId);
     else if (type?.startsWith("note-")) {
       loadNotes(activeNotebookId);
-      if (type === "note-updated" && evt.noteId === activeNoteId) {
+      if (type === "note-updated" && evt.noteId === activeNoteId && !isOwnSaveEcho(evt)) {
         if (dirty) showConflictBanner("Remote changes detected while you were editing.");
         else loadNote(activeNoteId);
       }
@@ -1046,7 +1196,7 @@ function handleEvent(msg) {
   else if (type?.startsWith("folder-")) loadFolders(activeNotebookId);
   else if (type?.startsWith("note-")) {
     loadNotes(activeNotebookId);
-    if (type === "note-updated" && data.noteId === activeNoteId) {
+    if (type === "note-updated" && data.noteId === activeNoteId && !isOwnSaveEcho(data)) {
       if (dirty) showConflictBanner("Remote changes detected while you were editing.");
       else loadNote(activeNoteId);
     }
@@ -1133,6 +1283,7 @@ async function loadNote(noteId) {
   if (activeNoteId === n.id) {
     document.getElementById("note-title-input").value = n.title;
     document.getElementById("editor").value = n.bodyMd;
+    autosizeEditor();
     savedRevision = n.revision;
     clearDirty();
   }
@@ -1498,16 +1649,20 @@ function togglePreview() {
   previewMode = !previewMode;
   const editor = document.getElementById("editor");
   const preview = document.getElementById("preview");
+  const title = document.getElementById("note-title-input");
   const btn = document.getElementById("preview-btn");
   if (previewMode) {
     preview.innerHTML = renderMarkdown(editor.value);
+    title.style.display = "none";
     editor.style.display = "none";
     preview.style.display = "block";
     btn.style.color = "var(--accent)";
   } else {
+    title.style.display = "";
     editor.style.display = "block";
     preview.style.display = "none";
     btn.style.color = "";
+    autosizeEditor();
   }
 }
 
@@ -1669,12 +1824,13 @@ async function selectNote(id) {
   const n = notes[id];
   document.getElementById("note-title-input").value = n.title;
   document.getElementById("editor").value = n.bodyMd;
+  autosizeEditor();
   if (previewMode) document.getElementById("preview").innerHTML = renderMarkdown(n.bodyMd);
   savedRevision = n.revision;
   document.getElementById("note-rev").textContent = `rev ${n.revision}`;
   document.title = `${n.title || "Untitled"} — Notes`;
   clearDirty();
-  document.getElementById("overflow-wrap").style.display = "";
+  document.getElementById("overflow-note-section").style.display = "";
   saveSelection();
   pushRoute();
   // Update publish/unpublish button state
@@ -1684,6 +1840,50 @@ async function selectNote(id) {
   document.getElementById("view-published-btn").style.display = isPublished ? "" : "none";
   if (isMobile()) mobileSetView("editor");
 }
+
+// ── Zen mode ──────────────────────────────────────────────────────────────
+function setZen(on) {
+  document.body.classList.toggle("zen-mode", !!on);
+  localStorage.setItem("zen-mode", on ? "1" : "0");
+  setTimeout(autosizeEditor, 0);
+}
+function toggleZen() { setZen(!document.body.classList.contains("zen-mode")); }
+if (localStorage.getItem("zen-mode") === "1") setZen(true);
+
+// ── Editor font size (A- / A+) ────────────────────────────────────────────
+const EDITOR_SIZE_DEFAULT = 16;
+const EDITOR_SIZE_MIN = 12;
+const EDITOR_SIZE_MAX = 22;
+
+function loadEditorSize() {
+  const stored = parseFloat(localStorage.getItem("editor-font-size"));
+  if (!isNaN(stored) && stored >= EDITOR_SIZE_MIN && stored <= EDITOR_SIZE_MAX) return stored;
+  return EDITOR_SIZE_DEFAULT;
+}
+
+function applyEditorSize(px) {
+  document.documentElement.style.setProperty("--editor-font-size", px + "px");
+  localStorage.setItem("editor-font-size", String(px));
+  autosizeEditor();
+}
+
+function adjustEditorSize(delta) {
+  const next = Math.max(EDITOR_SIZE_MIN, Math.min(EDITOR_SIZE_MAX, loadEditorSize() + delta));
+  applyEditorSize(next);
+}
+
+applyEditorSize(loadEditorSize());
+
+// ── Editor autosize ──────────────────────────────────────────────────────
+// The textarea lives inside .editor-scroll and does not scroll itself —
+// grow its height to fit content so the outer column scrolls as one document.
+function autosizeEditor() {
+  const el = document.getElementById("editor");
+  if (!el) return;
+  el.style.height = "auto";
+  el.style.height = el.scrollHeight + "px";
+}
+window.addEventListener("resize", autosizeEditor);
 
 // ── Create / Save ─────────────────────────────────────────────────────────
 async function newNote() {
@@ -1724,6 +1924,7 @@ function onEditorInput() {
   if (autoCreating) return;
 
   dirty = true;
+  autosizeEditor();
   document.getElementById("save-status").textContent = "";
   if (saveTimer) clearTimeout(saveTimer);
   // Don't arm autoSave while a conflict is unresolved — user must resolve first
@@ -1757,6 +1958,7 @@ async function triggerAutoCreate() {
     // selectNote wrote the server-side (empty) values; restore what they typed
     editor.value = pendingBody;
     titleInput.value = pendingTitle;
+    autosizeEditor();
     editor.focus();
     editor.selectionStart = editor.selectionEnd = editor.value.length;
     dirty = true;
@@ -2034,8 +2236,9 @@ async function confirmDirty() {
 function clearEditor() {
   document.getElementById("note-title-input").value = "";
   document.getElementById("editor").value = "";
+  autosizeEditor();
   document.getElementById("note-rev").textContent = "";
-  document.getElementById("overflow-wrap").style.display = "none";
+  document.getElementById("overflow-note-section").style.display = "none";
   document.title = "Notes";
   dismissConflictBanner();
   clearDirty();
@@ -2299,7 +2502,10 @@ async function createFolder() {
 
 // ── Keyboard shortcuts ────────────────────────────────────────────────────
 document.addEventListener("keydown", e => {
-  if ((e.metaKey || e.ctrlKey) && e.key === "s") {
+  if (e.key === "Escape" && document.body.classList.contains("zen-mode")) {
+    e.preventDefault();
+    setZen(false);
+  } else if ((e.metaKey || e.ctrlKey) && e.key === "s") {
     e.preventDefault();
     if (dirty) saveNote();
   } else if ((e.metaKey || e.ctrlKey) && e.altKey && (e.key === "n" || e.key === "N" || e.code === "KeyN")) {
@@ -2308,8 +2514,66 @@ document.addEventListener("keydown", e => {
       e.preventDefault();
       newNote();
     }
+  } else if ((e.metaKey || e.ctrlKey) && !e.altKey && document.activeElement && document.activeElement.id === "editor") {
+    const k = e.key.toLowerCase();
+    if (k === "b") { e.preventDefault(); formatMarkdown("bold"); }
+    else if (k === "i") { e.preventDefault(); formatMarkdown("italic"); }
+    else if (k === "k") { e.preventDefault(); formatMarkdown("link"); }
   }
 });
+
+// ── Markdown formatting (⌘B / ⌘I / ⌘K) ────────────────────────────────────
+function formatMarkdown(kind) {
+  const ta = document.getElementById("editor");
+  if (!ta) return;
+  const v = ta.value;
+  const s = ta.selectionStart, e = ta.selectionEnd;
+  const sel = v.slice(s, e);
+
+  if (kind === "link") {
+    // If selection looks like a URL, use it as the href; otherwise use selection as text.
+    const isUrl = sel && /^(https?:\/\/|mailto:|\/)/i.test(sel.trim());
+    let inserted, caretStart, caretEnd;
+    if (isUrl) {
+      inserted = `[](${sel.trim()})`;
+      caretStart = caretEnd = s + 1;          // cursor between brackets to type link text
+    } else if (sel) {
+      inserted = `[${sel}](url)`;
+      caretStart = s + 1 + sel.length + 2;    // select the "url" placeholder
+      caretEnd = caretStart + 3;
+    } else {
+      inserted = `[](url)`;
+      caretStart = s + 1;                     // cursor between brackets
+      caretEnd = caretStart;
+    }
+    ta.value = v.slice(0, s) + inserted + v.slice(e);
+    ta.selectionStart = caretStart;
+    ta.selectionEnd = caretEnd;
+  } else {
+    const marker = kind === "bold" ? "**" : "*";
+    const placeholder = kind === "bold" ? "bold text" : "italic text";
+    // Toggle off: selection is already wrapped by marker characters adjacent to it
+    const before = v.slice(Math.max(0, s - marker.length), s);
+    const after = v.slice(e, e + marker.length);
+    if (sel && before === marker && after === marker) {
+      ta.value = v.slice(0, s - marker.length) + sel + v.slice(e + marker.length);
+      ta.selectionStart = s - marker.length;
+      ta.selectionEnd = e - marker.length;
+    } else {
+      const body = sel || placeholder;
+      ta.value = v.slice(0, s) + marker + body + marker + v.slice(e);
+      if (sel) {
+        ta.selectionStart = s + marker.length;
+        ta.selectionEnd = s + marker.length + body.length;
+      } else {
+        // No selection: select the placeholder so the user can overwrite it
+        ta.selectionStart = s + marker.length;
+        ta.selectionEnd = s + marker.length + body.length;
+      }
+    }
+  }
+  onEditorInput();
+}
 
 // ── Mobile Navigation ────────────────────────────────────────────────────
 function isMobile() { return window.innerWidth <= 640; }
@@ -2343,6 +2607,14 @@ function mobileBack(to) {
 // ── Util ──────────────────────────────────────────────────────────────────
 function esc(s) {
   return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+// A note-updated event we receive with a revision we already have is the
+// echo of our own save — skip it to avoid clobbering the editor mid-keystroke.
+// Real remote updates always land with a revision greater than savedRevision.
+function isOwnSaveEcho(evt) {
+  const r = evt?.revision;
+  if (typeof r !== "number") return false;
+  return r <= savedRevision;
 }
 const DISCLAIMER_KEY = "alpha-disclaimer-acknowledged";
 function maybeShowDisclaimer() {
