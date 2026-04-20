@@ -105,10 +105,11 @@
   .sidebar-section-actions { display: flex; align-items: center; gap: 2px; }
 
   /* Collapsed sidebar — hide sidebar and its resizer, reveal expand button */
-  #sidebar-expand-btn, #sidebar-switcher-btn { display: none; }
+  #sidebar-expand-btn, #sidebar-switcher-btn, #sidebar-search-btn { display: none; }
   body.sidebar-collapsed .sidebar { display: none; }
   body.sidebar-collapsed .resizer[data-target="sidebar"] { display: none; }
   body.sidebar-collapsed #sidebar-expand-btn,
+  body.sidebar-collapsed #sidebar-search-btn,
   body.sidebar-collapsed #sidebar-switcher-btn { display: inline-flex; }
   .sidebar-list { flex: 1; overflow-y: auto; padding-bottom: 8px; min-height: 0; }
   .nb-item {
@@ -723,14 +724,16 @@
     border-bottom: 1px solid var(--border);
   }
   .switcher-input-icon { width: 16px; height: 16px; opacity: 0.55; flex-shrink: 0; }
-  #switcher-input {
+  .switcher-input-wrap input {
     flex: 1;
     background: none; border: none; outline: none;
     color: var(--text);
     font-family: var(--font);
     font-size: 15px;
+    padding: 0;
+    min-width: 0;
   }
-  #switcher-input::placeholder { color: var(--text-muted); }
+  .switcher-input-wrap input::placeholder { color: var(--text-muted); }
   .switcher-results {
     max-height: 420px;
     overflow-y: auto;
@@ -782,6 +785,47 @@
     font-family: var(--mono);
     font-size: 10px;
     margin-right: 3px;
+  }
+
+  /* ── full-text search specifics (built on switcher classes) ── */
+  .search-results { max-height: 460px; }
+  .search-result {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 10px 14px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--border-item);
+  }
+  .search-result:last-child { border-bottom: none; }
+  .search-result.selected,
+  .search-result:hover { background: var(--surface2); }
+  .search-result-title {
+    font-size: 13.5px;
+    font-weight: 500;
+    color: var(--text);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .search-result-snippet {
+    font-size: 12.5px;
+    color: var(--text-muted);
+    line-height: 1.5;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .search-result-snippet mark {
+    background: rgba(124,106,247,0.28);
+    color: var(--text);
+    padding: 0 2px;
+    border-radius: 2px;
+  }
+  .search-result-meta {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-family: var(--mono);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
 
   /* ── connect panel ── */
@@ -843,6 +887,7 @@
     .resizer { display: none; }
     body.sidebar-collapsed .sidebar { display: flex; }
     #sidebar-expand-btn,
+    #sidebar-search-btn,
     #sidebar-switcher-btn { display: none !important; }
     .sidebar-section .icon-btn { display: none; }
     .sidebar, .notes-panel, .editor-panel {
@@ -1054,6 +1099,16 @@
     <path d="M11 2 L14 5 L5 14 L2 14 L2 11 Z"/>
     <line x1="10" y1="3" x2="13" y2="6"/>
   </symbol>
+  <symbol id="i-search-text" viewBox="0 0 16 16">
+    <line x1="2" y1="3.5" x2="10" y2="3.5"/>
+    <line x1="2" y1="6.5" x2="8" y2="6.5"/>
+    <line x1="2" y1="9.5" x2="6" y2="9.5"/>
+    <circle cx="10.5" cy="10.5" r="2.5"/>
+    <line x1="12.4" y1="12.4" x2="14" y2="14"/>
+  </symbol>
+  <symbol id="i-bolt" viewBox="0 0 16 16">
+    <path d="M9.5 1.5 L3 9 L7 9 L6.5 14.5 L13 7 L9 7 Z"/>
+  </symbol>
 </svg>
 
 <!-- Connect panel (shown until URL + auth set) -->
@@ -1072,7 +1127,8 @@
     <div class="sidebar-section">
       <span id="conn-label">Notebooks</span>
       <div class="sidebar-section-actions">
-        <button class="icon-btn" title="Quick switch (⌘P)" onclick="openSwitcher()"><svg class="icon"><use href="#i-search"/></svg></button>
+        <button class="icon-btn" title="Search (⌘⇧F)" onclick="openSearch()"><svg class="icon"><use href="#i-search"/></svg></button>
+        <button class="icon-btn" title="Quick switch (⌘K)" onclick="openSwitcher()"><svg class="icon"><use href="#i-bolt"/></svg></button>
         <button class="icon-btn" title="Collapse sidebar" onclick="toggleSidebar()"><svg class="icon"><use href="#i-sidebar"/></svg></button>
       </div>
     </div>
@@ -1086,7 +1142,7 @@
     <div class="sidebar-brand">
       <svg class="icon brand-icon"><use href="#i-notebook"/></svg>
       <span class="brand-name">Notes</span>
-      <span class="sidebar-version">alpha v0.2.0</span>
+      <span class="sidebar-version">alpha v0.3.0</span>
       <button class="icon-btn sidebar-menu-btn" onclick="toggleSidebarMenu()" title="More"><svg class="icon"><use href="#i-menu"/></svg></button>
     </div>
   </div>
@@ -1097,7 +1153,8 @@
   <div class="notes-panel">
     <div class="notes-panel-header">
       <button class="icon-btn" id="sidebar-expand-btn" onclick="toggleSidebar()" title="Show sidebar"><svg class="icon"><use href="#i-sidebar"/></svg></button>
-      <button class="icon-btn" id="sidebar-switcher-btn" onclick="openSwitcher()" title="Quick switch (⌘P)"><svg class="icon"><use href="#i-search"/></svg></button>
+      <button class="icon-btn" id="sidebar-search-btn" onclick="openSearch()" title="Search (⌘⇧F)"><svg class="icon"><use href="#i-search"/></svg></button>
+      <button class="icon-btn" id="sidebar-switcher-btn" onclick="openSwitcher()" title="Quick switch (⌘K)"><svg class="icon"><use href="#i-bolt"/></svg></button>
       <button class="back-btn" onclick="mobileBack('notebooks')" title="Back to notebooks">← </button>
       <button class="icon-btn folder-up-btn" id="folder-up-btn" onclick="folderUp()" style="display:none" title="Up one folder"><svg class="icon"><use href="#i-arrow-up"/></svg></button>
       <span id="folder-label">Notes</span>
@@ -1200,13 +1257,31 @@
 <div class="switcher-backdrop" id="switcher-backdrop" onclick="onSwitcherBackdropClick(event)">
   <div class="switcher" onclick="event.stopPropagation()">
     <div class="switcher-input-wrap">
-      <svg class="icon switcher-input-icon"><use href="#i-search"/></svg>
+      <svg class="icon switcher-input-icon"><use href="#i-bolt"/></svg>
       <input id="switcher-input" type="text" placeholder="Jump to notebook, folder, or note…" autocomplete="off" spellcheck="false" />
     </div>
     <div class="switcher-results" id="switcher-results"></div>
     <div class="switcher-hint">
       <span><kbd>↑</kbd><kbd>↓</kbd> navigate</span>
       <span><kbd>↵</kbd> open</span>
+      <span><kbd>tab</kbd> search</span>
+      <span><kbd>esc</kbd> close</span>
+    </div>
+  </div>
+</div>
+
+<!-- Full-text search -->
+<div class="switcher-backdrop search-backdrop" id="search-backdrop" onclick="onSearchBackdropClick(event)">
+  <div class="switcher search-modal" onclick="event.stopPropagation()">
+    <div class="switcher-input-wrap">
+      <svg class="icon switcher-input-icon"><use href="#i-search"/></svg>
+      <input id="search-input" type="text" placeholder="Search titles and note contents…" autocomplete="off" spellcheck="false" />
+    </div>
+    <div class="switcher-results search-results" id="search-results"></div>
+    <div class="switcher-hint">
+      <span><kbd>↑</kbd><kbd>↓</kbd> navigate</span>
+      <span><kbd>↵</kbd> open</span>
+      <span><kbd>tab</kbd> jump</span>
       <span><kbd>esc</kbd> close</span>
     </div>
   </div>
@@ -2193,13 +2268,15 @@ let switcherBuilding = false;
 
 function switcherOpen() { return document.getElementById("switcher-backdrop").classList.contains("open"); }
 
-async function openSwitcher() {
+async function openSwitcher(initialQuery) {
   if (switcherOpen()) return;
   document.getElementById("switcher-backdrop").classList.add("open");
   const input = document.getElementById("switcher-input");
-  input.value = "";
-  renderSwitcherResults("");
+  const q = typeof initialQuery === "string" ? initialQuery : "";
+  input.value = q;
+  renderSwitcherResults(q);
   input.focus();
+  input.setSelectionRange(q.length, q.length);
   // Build/refresh the index in the background; re-render when it lands.
   if (!switcherBuilding) {
     switcherBuilding = true;
@@ -2257,7 +2334,14 @@ async function buildSwitcherIndex() {
         kind: "note",
         label: n.title || "Untitled",
         subtitle: nbName + folderPart,
-        navigate: async () => { await selectNotebook(nb.id); await selectNote(n.id); }
+        navigate: async () => { await selectNotebook(nb.id); await selectNote(n.id); },
+        // Rich metadata reused by full-text search
+        noteId: n.id,
+        notebookId: nb.id,
+        notebookTitle: nbName,
+        folderLabel: folderPart,
+        bodyMd: n.bodyMd || "",
+        updatedAt: n.updatedAt || 0
       });
     });
   }));
@@ -2328,11 +2412,12 @@ function setSwitcherSelection(idx) {
   if (target) target.scrollIntoView({ block: "nearest" });
 }
 
-function selectSwitcherResult() {
+async function selectSwitcherResult() {
   const item = switcherFiltered[switcherSelIdx];
   if (!item) return;
   closeSwitcher();
-  item.navigate();
+  await item.navigate();
+  if (item.kind === "note") focusEditorAtTop();
 }
 
 document.getElementById("switcher-input").addEventListener("input", (e) => {
@@ -2343,6 +2428,143 @@ document.getElementById("switcher-input").addEventListener("keydown", (e) => {
   else if (e.key === "ArrowUp") { e.preventDefault(); setSwitcherSelection(Math.max(switcherSelIdx - 1, 0)); }
   else if (e.key === "Enter") { e.preventDefault(); selectSwitcherResult(); }
   else if (e.key === "Escape") { e.preventDefault(); closeSwitcher(); }
+  else if (e.key === "Tab") { e.preventDefault(); const q = e.currentTarget.value; closeSwitcher(); openSearch(q); }
+});
+
+// ── Full-text search ──────────────────────────────────────────────────────
+let searchResults = [];
+let searchSelIdx = 0;
+let searchBuilding = false;
+
+function isSearchOpen() {
+  return document.getElementById("search-backdrop").classList.contains("open");
+}
+
+async function openSearch(initialQuery) {
+  if (isSearchOpen()) return;
+  if (switcherOpen()) closeSwitcher();
+  document.getElementById("search-backdrop").classList.add("open");
+  const input = document.getElementById("search-input");
+  const q = typeof initialQuery === "string" ? initialQuery : "";
+  input.value = q;
+  renderSearchResults(q);
+  input.focus();
+  input.setSelectionRange(q.length, q.length);
+  // Reuse the switcher index (prefetches all notebooks' notes + bodies).
+  if (switcherItems.length === 0 && !switcherBuilding && !searchBuilding) {
+    searchBuilding = true;
+    await buildSwitcherIndex();
+    searchBuilding = false;
+    if (isSearchOpen()) renderSearchResults(input.value);
+  }
+}
+
+function closeSearch() {
+  document.getElementById("search-backdrop").classList.remove("open");
+  searchSelIdx = 0;
+}
+
+function onSearchBackdropClick(e) {
+  if (e.target.id === "search-backdrop") closeSearch();
+}
+
+function escapeRegex(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
+
+function scoreSearchHit(query, note) {
+  const q = query.toLowerCase();
+  const title = (note.label || "").toLowerCase();
+  const body = (note.bodyMd || "").toLowerCase();
+  if (title === q) return { score: 10000, where: "title", idx: 0 };
+  const tIdx = title.indexOf(q);
+  if (tIdx >= 0) return { score: 5000 - tIdx, where: "title", idx: tIdx };
+  const bIdx = body.indexOf(q);
+  if (bIdx >= 0) return { score: Math.max(1, 2000 - bIdx * 0.05), where: "body", idx: bIdx };
+  return null;
+}
+
+function makeSearchSnippet(body, hitIdx, query) {
+  if (hitIdx < 0 || !body) return "";
+  const before = 40, after = 100;
+  const start = Math.max(0, hitIdx - before);
+  const end = Math.min(body.length, hitIdx + query.length + after);
+  let text = body.slice(start, end);
+  if (start > 0) text = "…" + text;
+  if (end < body.length) text += "…";
+  const escText = esc(text);
+  const re = new RegExp(escapeRegex(esc(query)), "gi");
+  return escText.replace(re, m => `<mark>${m}</mark>`);
+}
+
+function renderSearchResults(query) {
+  const root = document.getElementById("search-results");
+  const q = (query || "").trim();
+  if (!q) {
+    root.innerHTML = `<div class="switcher-empty">${searchBuilding || switcherBuilding ? "Indexing notebooks…" : "Type to search across all notebooks"}</div>`;
+    return;
+  }
+  const noteItems = switcherItems.filter(i => i.kind === "note");
+  const scored = [];
+  for (const n of noteItems) {
+    const hit = scoreSearchHit(q, n);
+    if (hit) scored.push({ item: n, hit });
+  }
+  scored.sort((a, b) => b.hit.score - a.hit.score);
+  searchResults = scored.slice(0, 40);
+  searchSelIdx = 0;
+  if (searchResults.length === 0) {
+    root.innerHTML = `<div class="switcher-empty">No matches</div>`;
+    return;
+  }
+  root.innerHTML = searchResults.map((r, i) => {
+    const n = r.item;
+    const snippet = r.hit.where === "body" ? makeSearchSnippet(n.bodyMd, r.hit.idx, q) : "";
+    const meta = `${esc(n.notebookTitle)}${n.folderLabel ? " " + esc(n.folderLabel) : ""}`;
+    return `<div class="search-result${i === 0 ? " selected" : ""}" data-idx="${i}">
+      <div class="search-result-title">${esc(n.label)}</div>
+      ${snippet ? `<div class="search-result-snippet">${snippet}</div>` : ""}
+      <div class="search-result-meta">${meta}</div>
+    </div>`;
+  }).join("");
+  root.querySelectorAll(".search-result").forEach(el => {
+    el.addEventListener("click", () => { searchSelIdx = parseInt(el.dataset.idx, 10); acceptSearchResult(); });
+    el.addEventListener("mouseenter", () => setSearchSelection(parseInt(el.dataset.idx, 10)));
+  });
+}
+
+function setSearchSelection(idx) {
+  const els = document.querySelectorAll("#search-results .search-result");
+  if (idx < 0 || idx >= els.length) return;
+  searchSelIdx = idx;
+  els.forEach((el, i) => el.classList.toggle("selected", i === idx));
+  if (els[idx]) els[idx].scrollIntoView({ block: "nearest" });
+}
+
+async function acceptSearchResult() {
+  const r = searchResults[searchSelIdx];
+  if (!r) return;
+  closeSearch();
+  await r.item.navigate();
+  focusEditorAtTop();
+}
+
+function focusEditorAtTop() {
+  const ed = document.getElementById("editor");
+  if (!ed) return;
+  ed.focus();
+  ed.setSelectionRange(0, 0);
+  const scroll = document.querySelector(".editor-scroll");
+  if (scroll) scroll.scrollTop = 0;
+}
+
+document.getElementById("search-input").addEventListener("input", (e) => {
+  renderSearchResults(e.target.value);
+});
+document.getElementById("search-input").addEventListener("keydown", (e) => {
+  if (e.key === "ArrowDown") { e.preventDefault(); setSearchSelection(Math.min(searchSelIdx + 1, searchResults.length - 1)); }
+  else if (e.key === "ArrowUp") { e.preventDefault(); setSearchSelection(Math.max(searchSelIdx - 1, 0)); }
+  else if (e.key === "Enter") { e.preventDefault(); acceptSearchResult(); }
+  else if (e.key === "Escape") { e.preventDefault(); closeSearch(); }
+  else if (e.key === "Tab") { e.preventDefault(); const q = e.currentTarget.value; closeSearch(); openSwitcher(q); }
 });
 
 // ── Zen mode ──────────────────────────────────────────────────────────────
@@ -3501,9 +3723,14 @@ async function createFolder() {
 
 // ── Keyboard shortcuts ────────────────────────────────────────────────────
 document.addEventListener("keydown", e => {
-  if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && (e.key === "p" || e.key === "P" || e.key === "e" || e.key === "E")) {
+  if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && (e.key === "p" || e.key === "P" || e.key === "e" || e.key === "E" || e.key === "k" || e.key === "K")) {
     e.preventDefault();
     if (switcherOpen()) closeSwitcher(); else openSwitcher();
+    return;
+  }
+  if ((e.metaKey || e.ctrlKey) && e.shiftKey && !e.altKey && (e.key === "f" || e.key === "F")) {
+    e.preventDefault();
+    if (isSearchOpen()) closeSearch(); else openSearch();
     return;
   }
   if (e.key === "Escape" && document.body.classList.contains("zen-mode")) {
@@ -3520,9 +3747,9 @@ document.addEventListener("keydown", e => {
     }
   } else if ((e.metaKey || e.ctrlKey) && !e.altKey && document.activeElement && document.activeElement.id === "editor") {
     const k = e.key.toLowerCase();
-    if (k === "b") { e.preventDefault(); formatMarkdown("bold"); }
-    else if (k === "i") { e.preventDefault(); formatMarkdown("italic"); }
-    else if (k === "k") { e.preventDefault(); formatMarkdown("link"); }
+    if (!e.shiftKey && k === "b") { e.preventDefault(); formatMarkdown("bold"); }
+    else if (!e.shiftKey && k === "i") { e.preventDefault(); formatMarkdown("italic"); }
+    else if (e.shiftKey && k === "k") { e.preventDefault(); formatMarkdown("link"); }
   }
 });
 
