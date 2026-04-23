@@ -1251,6 +1251,11 @@
     <line x1="6" y1="8" x2="13.5" y2="8"/>
     <line x1="6" y1="12" x2="12" y2="12"/>
   </symbol>
+  <symbol id="i-image" viewBox="0 0 16 16">
+    <rect x="1.5" y="2.5" width="13" height="11" rx="1"/>
+    <circle cx="5.5" cy="6" r="1.2" fill="currentColor" stroke="none"/>
+    <path d="M2 11.5 L6 7.5 L9 10 L11.5 7 L14 10.5"/>
+  </symbol>
 </svg>
 
 <!-- Connect panel (shown until URL + auth set) -->
@@ -1285,7 +1290,7 @@
       <svg class="icon brand-icon"><use href="#i-notebook"/></svg>
       <div class="brand-text">
         <span class="brand-name">Notes</span>
-        <span class="sidebar-version">alpha v0.5.0</span>
+        <span class="sidebar-version">alpha v0.6.0</span>
       </div>
       <button class="icon-btn sidebar-menu-btn" onclick="toggleSidebarMenu()" title="More"><svg class="icon"><use href="#i-menu"/></svg></button>
     </div>
@@ -1336,6 +1341,7 @@
         <button class="icon-btn fmt-btn" onmousedown="event.preventDefault()" onclick="formatMarkdown('link')" title="Link (⌘⇧K)"><svg class="icon"><use href="#i-link"/></svg></button>
         <button class="icon-btn fmt-btn" onmousedown="event.preventDefault()" onclick="formatMarkdown('quote')" title="Blockquote"><svg class="icon"><use href="#i-quote"/></svg></button>
         <button class="icon-btn fmt-btn" onmousedown="event.preventDefault()" onclick="formatMarkdown('list')" title="Bulleted list"><svg class="icon"><use href="#i-list"/></svg></button>
+        <button class="icon-btn fmt-btn" onmousedown="event.preventDefault()" onclick="pickAndUploadImages()" title="Insert image"><svg class="icon"><use href="#i-image"/></svg></button>
       </div>
       <span class="fmt-separator" aria-hidden="true"></span>
       <span class="note-breadcrumb" id="note-breadcrumb"></span>
@@ -1404,6 +1410,7 @@
       <button class="icon-btn fmt-btn" onmousedown="event.preventDefault()" onclick="formatMarkdown('link')" title="Link"><svg class="icon"><use href="#i-link"/></svg></button>
       <button class="icon-btn fmt-btn" onmousedown="event.preventDefault()" onclick="formatMarkdown('quote')" title="Blockquote"><svg class="icon"><use href="#i-quote"/></svg></button>
       <button class="icon-btn fmt-btn" onmousedown="event.preventDefault()" onclick="formatMarkdown('list')" title="Bulleted list"><svg class="icon"><use href="#i-list"/></svg></button>
+      <button class="icon-btn fmt-btn" onmousedown="event.preventDefault()" onclick="pickAndUploadImages()" title="Insert image"><svg class="icon"><use href="#i-image"/></svg></button>
     </div>
   </div>
 </div>
@@ -2385,42 +2392,47 @@ function renderMarkdown(src) {
 function inline(s) {
   const esc = t => t.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
   const attr = t => esc(t).replace(/"/g, "&quot;");
-  // inline code first (to protect contents)
-  let result = "";
-  let rest = s;
-  while (rest) {
-    const cm = rest.match(/`([^`]+)`/);
-    if (!cm) { result += rest; break; }
-    result += rest.slice(0, cm.index);
-    result += "<code>" + esc(cm[1]) + "</code>";
-    rest = rest.slice(cm.index + cm[0].length);
-  }
-  s = result;
-  // wiki-links [[Title]] — before standard links so double brackets don't interfere
-  s = s.replace(/\[\[([^\[\]]+?)\]\]/g, (m, raw) => {
+
+  // Extract tokens that produce HTML BEFORE running inline formatting, so
+  // characters inside URLs / alt text / code spans (_, *, ~~) don't get
+  // munged by the bold/italic/strike passes. Each extracted token is
+  // replaced with a placeholder (contains NUL chars so no further regex
+  // matches it), and the placeholder is swapped back at the very end.
+  const tokens = [];
+  const placeholder = (html) => {
+    tokens.push(html);
+    return `TOK${tokens.length - 1}`;
+  };
+
+  // Order matters: code first (protects contents), then images (leading `!`
+  // so they don't look like links), then wiki-links (double-brackets before
+  // single-bracket link pattern can see them), then standard links.
+  s = s.replace(/`([^`]+)`/g, (_m, c) =>
+    placeholder(`<code>${esc(c)}</code>`));
+  s = s.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_m, alt, url) =>
+    placeholder(`<img src="${attr(url)}" alt="${attr(alt)}">`));
+  s = s.replace(/\[\[([^\[\]]+?)\]\]/g, (_m, raw) => {
     const target = raw.trim();
     const note = resolveWikiLink(target);
-    if (note) {
-      return `<a class="wiki-link" data-note-id="${note.id}" href="javascript:void(0)">${esc(target)}</a>`;
-    }
-    return `<a class="wiki-link unresolved" data-wiki-target="${attr(target)}" href="javascript:void(0)">${esc(target)}</a>`;
+    const html = note
+      ? `<a class="wiki-link" data-note-id="${note.id}" href="javascript:void(0)">${esc(target)}</a>`
+      : `<a class="wiki-link unresolved" data-wiki-target="${attr(target)}" href="javascript:void(0)">${esc(target)}</a>`;
+    return placeholder(html);
   });
-  // images before links
-  s = s.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, "<img src=\"$2\" alt=\"$1\">");
-  // links
-  s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, "<a href=\"$2\" target=\"_blank\">$1</a>");
-  // bold+italic
+  s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_m, text, url) =>
+    placeholder(`<a href="${attr(url)}" target="_blank">${esc(text)}</a>`));
+
+  // Now inline formatting on plain text only.
   s = s.replace(/\*\*\*(.+?)\*\*\*/g, "<strong><em>$1</em></strong>");
-  s = s.replace(/___(.+?)___/g, "<strong><em>$1</em></strong>");
-  // bold
-  s = s.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
-  s = s.replace(/__(.+?)__/g, "<strong>$1</strong>");
-  // italic
-  s = s.replace(/\*(.+?)\*/g, "<em>$1</em>");
-  s = s.replace(/_(.+?)_/g, "<em>$1</em>");
-  // strikethrough
-  s = s.replace(/~~(.+?)~~/g, "<del>$1</del>");
-  return s;
+  s = s.replace(/___(.+?)___/g,       "<strong><em>$1</em></strong>");
+  s = s.replace(/\*\*(.+?)\*\*/g,     "<strong>$1</strong>");
+  s = s.replace(/__(.+?)__/g,         "<strong>$1</strong>");
+  s = s.replace(/\*(.+?)\*/g,         "<em>$1</em>");
+  s = s.replace(/_(.+?)_/g,           "<em>$1</em>");
+  s = s.replace(/~~(.+?)~~/g,         "<del>$1</del>");
+
+  // Swap tokens back in.
+  return s.replace(/TOK(\d+)/g, (_m, i) => tokens[+i]);
 }
 
 // ── Selection ─────────────────────────────────────────────────────────────
@@ -4231,6 +4243,275 @@ function initFormatStrip() {
   });
 }
 initFormatStrip();
+
+// ── S3 image upload (via %storage agent) ─────────────────────────────────
+// We read S3 credentials + config from the %storage agent, then sign and
+// PUT each image directly to the configured bucket using AWS SigV4. The
+// returned URL is inserted into the editor as a markdown image link.
+// Assumptions: path-style URLs (host/bucket/key) — common for Cloudflare
+// R2 / Minio / Backblaze. If a ship uses virtual-hosted style, the URL
+// construction needs to be adjusted.
+
+const S3 = {
+  config: null,   // normalized { endpoint, accessKeyId, secretAccessKey, region, bucket }
+  loading: null,  // in-flight promise
+};
+
+async function loadS3Config() {
+  if (S3.config) return S3.config;
+  if (S3.loading) return S3.loading;
+  S3.loading = (async () => {
+    const url = (path) => `${BASE_URL}/~/scry/storage${path}.json`;
+    const fetchJson = async (path) => {
+      const t0 = Date.now();
+      try {
+        const r = await fetch(url(path), { credentials: "include" });
+        const text = await r.text();
+        const dt = Date.now() - t0;
+        if (!r.ok) {
+          console.warn(`[notes] storage scry ${path}: HTTP ${r.status} in ${dt}ms`);
+          return null;
+        }
+        try {
+          const j = JSON.parse(text);
+          console.log(`[notes] storage scry ${path} (${dt}ms):`, j);
+          return j;
+        } catch {
+          console.warn(`[notes] storage scry ${path}: non-JSON body (${dt}ms):`, text.slice(0, 200));
+          return null;
+        }
+      } catch (e) {
+        console.warn(`[notes] storage scry ${path}: fetch threw`, e);
+        return null;
+      }
+    };
+    const [credsRaw, confRaw] = await Promise.all([
+      fetchJson("/credentials"),
+      fetchJson("/configuration"),
+    ]);
+    if (!credsRaw && !confRaw) throw new Error("Couldn't reach the %storage agent. Is it installed on this ship?");
+    if (!credsRaw) throw new Error("Got storage configuration but no credentials — open Landscape → Settings → Remote Storage and save the S3 credentials.");
+    if (!confRaw)  throw new Error("Got storage credentials but no configuration (bucket/region) — open Landscape → Settings → Remote Storage to finish setup.");
+    // %storage scries respond in an envelope:
+    //   { "storage-update": { credentials: {...} } }
+    //   { "storage-update": { configuration: {...} } }
+    // Unwrap (accept flat shapes too for robustness).
+    const creds = (credsRaw["storage-update"] && credsRaw["storage-update"].credentials)
+                || credsRaw.credentials || credsRaw;
+    const conf  = (confRaw["storage-update"] && confRaw["storage-update"].configuration)
+                || confRaw.configuration || confRaw;
+    const pick = (obj, ...keys) => {
+      for (const k of keys) if (obj && obj[k] != null) return obj[k];
+      return null;
+    };
+    const endpoint        = pick(creds, "endpoint", "s3-endpoint");
+    const accessKeyId     = pick(creds, "accessKeyId", "access-key-id", "accessKey");
+    const secretAccessKey = pick(creds, "secretAccessKey", "secret-access-key", "secretKey");
+    const region          = pick(conf,  "region", "s3-region") || "us-east-1";
+    const bucket          = pick(conf,  "currentBucket", "current-bucket")
+                          || (Array.isArray(conf.buckets) && conf.buckets[0])
+                          || null;
+    const missing = [];
+    if (!endpoint) missing.push("endpoint");
+    if (!accessKeyId) missing.push("access key");
+    if (!secretAccessKey) missing.push("secret key");
+    if (!bucket) missing.push("bucket");
+    if (missing.length) {
+      throw new Error(`Storage response is missing: ${missing.join(", ")}. Open Landscape → Settings → Remote Storage to set them.`);
+    }
+    S3.config = { endpoint, accessKeyId, secretAccessKey, region, bucket };
+    return S3.config;
+  })().catch(e => { S3.loading = null; throw e; });
+  const r = await S3.loading;
+  if (!r) S3.loading = null;
+  return r;
+}
+
+async function sha256Hex(data) {
+  const bytes = typeof data === "string" ? new TextEncoder().encode(data) : data;
+  const hash = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
+  return Array.from(hash).map(b => b.toString(16).padStart(2, "0")).join("");
+}
+async function hmacBytes(key, data) {
+  const k = typeof key === "string" ? new TextEncoder().encode(key) : key;
+  const d = typeof data === "string" ? new TextEncoder().encode(data) : data;
+  const ck = await crypto.subtle.importKey("raw", k, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  return new Uint8Array(await crypto.subtle.sign("HMAC", ck, d));
+}
+function hexBytes(bytes) {
+  return Array.from(bytes).map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+function sanitizeKeyPart(name) {
+  return name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 60);
+}
+
+async function uploadToS3(file) {
+  // loadS3Config throws a specific error if scries failed or fields are
+  // missing — let that bubble up so the user sees what's actually wrong.
+  const cfg = await loadS3Config();
+  const { endpoint, accessKeyId, secretAccessKey, region, bucket } = cfg;
+
+  // Key: notes/<timestamp>-<rand>-<sanitized-name>
+  const ts = new Date().toISOString().replace(/[-:T]/g, "").slice(0, 14);
+  const rand = Math.random().toString(36).slice(2, 8);
+  const dot = file.name.lastIndexOf(".");
+  const ext = dot > -1 ? file.name.slice(dot) : "";
+  const base = sanitizeKeyPart((dot > -1 ? file.name.slice(0, dot) : file.name) || "image");
+  const key = `notes/${ts}-${rand}-${base}${ext}`;
+
+  const contentType = file.type || "application/octet-stream";
+  const body = await file.arrayBuffer();
+  const payloadHash = await sha256Hex(new Uint8Array(body));
+
+  const url = new URL(endpoint);
+  const host = url.host;
+  const basePath = url.pathname.replace(/\/$/, "");
+  const keyPath = key.split("/").map(encodeURIComponent).join("/");
+  const objectPath = `${basePath}/${encodeURIComponent(bucket)}/${keyPath}`;
+
+  const now = new Date();
+  const amzDate = now.toISOString().replace(/[-:]|\.\d{3}/g, "");   // YYYYMMDDTHHMMSSZ
+  const datestamp = amzDate.slice(0, 8);
+
+  // public-read so the uploaded image is readable via its plain URL. Must
+  // be a signed header (alphabetical order in both places).
+  const signedHeaders = "content-type;host;x-amz-acl;x-amz-content-sha256;x-amz-date";
+  const canonicalHeaders =
+    `content-type:${contentType}\n` +
+    `host:${host}\n` +
+    `x-amz-acl:public-read\n` +
+    `x-amz-content-sha256:${payloadHash}\n` +
+    `x-amz-date:${amzDate}\n`;
+
+  const canonicalRequest =
+    "PUT\n" +
+    objectPath + "\n" +
+    "\n" +
+    canonicalHeaders + "\n" +
+    signedHeaders + "\n" +
+    payloadHash;
+
+  const credentialScope = `${datestamp}/${region}/s3/aws4_request`;
+  const stringToSign =
+    "AWS4-HMAC-SHA256\n" +
+    amzDate + "\n" +
+    credentialScope + "\n" +
+    await sha256Hex(canonicalRequest);
+
+  const kDate    = await hmacBytes("AWS4" + secretAccessKey, datestamp);
+  const kRegion  = await hmacBytes(kDate, region);
+  const kService = await hmacBytes(kRegion, "s3");
+  const kSigning = await hmacBytes(kService, "aws4_request");
+  const signature = hexBytes(await hmacBytes(kSigning, stringToSign));
+
+  const authorization = `AWS4-HMAC-SHA256 Credential=${accessKeyId}/${credentialScope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;
+  const putUrl = `${url.protocol}//${host}${objectPath}`;
+
+  const res = await fetch(putUrl, {
+    method: "PUT",
+    headers: {
+      "Authorization": authorization,
+      "x-amz-acl": "public-read",
+      "x-amz-content-sha256": payloadHash,
+      "x-amz-date": amzDate,
+      "Content-Type": contentType,
+    },
+    body,
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Upload failed (${res.status}). ${text || "Check bucket CORS + credentials."}`);
+  }
+  return putUrl;
+}
+
+async function handleImageFiles(files) {
+  if (!files || !files.length) return;
+  const imgs = Array.from(files).filter(f => f && f.type && f.type.startsWith("image/"));
+  if (!imgs.length) return;
+  const ta = document.getElementById("editor");
+  if (!ta) return;
+  const save = document.getElementById("save-status");
+
+  const urls = [];
+  try {
+    for (let i = 0; i < imgs.length; i++) {
+      if (save) save.textContent = imgs.length === 1
+        ? "Uploading image…"
+        : `Uploading image ${i + 1}/${imgs.length}…`;
+      const u = await uploadToS3(imgs[i]);
+      urls.push({ url: u, name: imgs[i].name });
+    }
+  } catch (e) {
+    if (save) save.textContent = "";
+    alert(e && e.message ? e.message : "Image upload failed");
+    return;
+  }
+
+  if (urls.length) {
+    const s = ta.selectionStart, e = ta.selectionEnd;
+    const v = ta.value;
+    const md = urls.map(({ url, name }) => {
+      const alt = (name.replace(/\.[^.]+$/, "") || "image").replace(/[\[\]]/g, "").slice(0, 80);
+      return `![${alt}](${url})`;
+    }).join("\n");
+    ta.value = v.slice(0, s) + md + v.slice(e);
+    ta.selectionStart = ta.selectionEnd = s + md.length;
+    onEditorInput();
+  }
+  if (save) {
+    save.textContent = urls.length === 1 ? "Image uploaded" : `${urls.length} images uploaded`;
+    setTimeout(() => {
+      if (save.textContent.includes("uploaded")) save.textContent = "";
+    }, 2000);
+  }
+}
+
+function pickAndUploadImages() {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = "image/*";
+  input.multiple = true;
+  input.onchange = (e) => handleImageFiles(e.target.files);
+  input.click();
+}
+
+// Drag-and-drop + paste handlers on the editor textarea.
+function initImageDropPaste() {
+  const ta = document.getElementById("editor");
+  if (!ta) return;
+  ta.addEventListener("dragover", (e) => {
+    if (e.dataTransfer && Array.from(e.dataTransfer.types || []).includes("Files")) {
+      e.preventDefault();
+    }
+  });
+  ta.addEventListener("drop", (e) => {
+    if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) {
+      const imgs = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith("image/"));
+      if (imgs.length) {
+        e.preventDefault();
+        handleImageFiles(imgs);
+      }
+    }
+  });
+  ta.addEventListener("paste", (e) => {
+    const items = e.clipboardData && e.clipboardData.items;
+    if (!items) return;
+    const imgs = [];
+    for (const item of items) {
+      if (item.kind === "file" && item.type && item.type.startsWith("image/")) {
+        const f = item.getAsFile();
+        if (f) imgs.push(f);
+      }
+    }
+    if (imgs.length) {
+      e.preventDefault();
+      handleImageFiles(imgs);
+    }
+  });
+}
+initImageDropPaste();
 
 // If there's no selection but the caret is inside or touching a word,
 // return its character bounds. Used so ⌘B / ⌘I / ⌘K can wrap the
