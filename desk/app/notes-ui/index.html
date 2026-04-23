@@ -19,9 +19,26 @@
     --accent-hover: #9080ff;
     --danger: #e05c5c;
     --success: #4caf82;
+    --shadow: 0 20px 60px rgba(0,0,0,0.5);
+    --shadow-md: 0 8px 24px rgba(0,0,0,0.4);
     --font: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     --mono: "JetBrains Mono", "Fira Code", "Cascadia Code", monospace;
     --editor-font-size: 16px;
+  }
+  :root[data-theme="light"] {
+    --bg: #ffffff;
+    --surface: #f5f5f7;
+    --surface2: #ebebee;
+    --border: #dcdce0;
+    --border-item: #ededf0;
+    --text: #141416;
+    --text-muted: #71717a;
+    --accent: #6b58e8;
+    --accent-hover: #5243d1;
+    --danger: #c84242;
+    --success: #248958;
+    --shadow: 0 20px 60px rgba(30,30,60,0.14);
+    --shadow-md: 0 8px 24px rgba(30,30,60,0.12);
   }
 
   body {
@@ -257,6 +274,7 @@
   #folder-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .panel-actions { display: flex; align-items: center; gap: 6px; }
   .notes-panel-footer { display: none; }
+  .editor-panel-footer { display: none; }
   .nb-lock { width: 12px; height: 12px; color: var(--text-muted); flex-shrink: 0; margin-left: 2px; }
   .nb-item.active .nb-lock { color: rgba(255,255,255,0.8); }
   .notes-list { flex: 1; overflow-y: auto; }
@@ -315,7 +333,7 @@
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 6px;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    box-shadow: var(--shadow-md);
     min-width: 180px;
     white-space: nowrap;
     z-index: 150;
@@ -404,6 +422,53 @@
       margin-top: 0;
       margin-bottom: 6px;
     }
+    /* Pin toggle + formatting group, hidden on desktop until revealed */
+    .editor-toolbar .fmt-pin-btn { display: inline-flex; }
+    /* Chevron points LEFT when closed (reveal cue), RIGHT when open. */
+    .editor-toolbar .fmt-pin-btn .icon {
+      transition: transform 0.15s;
+      transform: rotate(180deg);
+    }
+    body.format-pinned .editor-toolbar .fmt-pin-btn .icon,
+    body.format-hovered .editor-toolbar .fmt-pin-btn .icon {
+      transform: rotate(0);
+    }
+    .editor-toolbar-fmt {
+      display: none;
+      align-items: center;
+      gap: 2px;
+    }
+    body.format-pinned .editor-toolbar-fmt,
+    body.format-hovered .editor-toolbar-fmt {
+      display: inline-flex;
+    }
+    /* Vertical separator between the format group and the static right
+       cluster, only visible when the format group is showing. */
+    .fmt-separator { display: none; }
+    body.format-pinned .fmt-separator,
+    body.format-hovered .fmt-separator {
+      display: inline-block;
+      width: 1px;
+      height: 18px;
+      margin: 0 10px;
+      background: var(--border);
+      opacity: 0.7;
+    }
+    .editor-toolbar-fmt .fmt-glyph {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 16px; height: 16px; font-size: 13px; line-height: 1;
+      opacity: 0.65; font-family: var(--font);
+    }
+    .editor-toolbar-fmt .fmt-btn:hover .fmt-glyph { opacity: 0.95; }
+    .editor-toolbar-fmt .fmt-bold { font-weight: 700; }
+    .editor-toolbar-fmt .fmt-italic { font-style: italic; font-family: Georgia, serif; }
+    .editor-toolbar-fmt .fmt-heading { font-weight: 700; }
+  }
+  /* Mobile: pin button + inline fmt hidden (footer handles it there) */
+  @media (max-width: 640px) {
+    .editor-toolbar .fmt-pin-btn,
+    .editor-toolbar-fmt,
+    .fmt-separator { display: none !important; }
   }
   #note-title-input {
     display: block;
@@ -463,7 +528,7 @@
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 6px;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    box-shadow: var(--shadow-md);
     min-width: 180px;
     white-space: nowrap;
     z-index: 50;
@@ -500,6 +565,15 @@
     height: 1px;
     background: var(--border);
     margin: 4px 6px;
+  }
+  .overflow-menu .menu-section-label {
+    padding: 6px 12px 2px;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--text-muted);
+    user-select: none;
   }
 
   .editor-scroll {
@@ -620,7 +694,7 @@
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 6px;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    box-shadow: var(--shadow-md);
     min-width: 220px;
     max-width: 360px;
     max-height: 240px;
@@ -695,7 +769,7 @@
     border-radius: 8px;
     padding: 20px;
     width: 320px;
-    box-shadow: 0 16px 48px rgba(0,0,0,0.5);
+    box-shadow: var(--shadow);
   }
   .modal h3 { font-size: 14px; margin-bottom: 14px; }
   .modal input, .modal select {
@@ -737,7 +811,7 @@
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 8px;
-    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+    box-shadow: var(--shadow);
     width: 560px;
     max-width: calc(100vw - 24px);
     display: flex;
@@ -1000,6 +1074,29 @@
     /* On mobile the nb-flag is too small to hit reliably; route copy through the menu instead */
     .nb-item .nb-flag { pointer-events: none; }
 
+    /* Editor bottom footer on mobile — formatting shortcuts since the
+       phone keyboard can't easily trigger ⌘B / ⌘I / ⌘K. */
+    .editor-panel-footer {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 6px 8px;
+      border-top: 1px solid var(--border);
+      background: var(--surface);
+      flex-shrink: 0;
+    }
+    .editor-panel-footer .fmt-btn { padding: 10px 14px; min-width: 44px; }
+    .editor-panel-footer .fmt-glyph {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 20px; height: 20px; font-size: 16px; line-height: 1;
+      opacity: 0.65; font-family: var(--font);
+    }
+    .editor-panel-footer .fmt-btn:hover .fmt-glyph,
+    .editor-panel-footer .fmt-btn:active .fmt-glyph { opacity: 0.95; }
+    .editor-panel-footer .fmt-bold { font-weight: 700; }
+    .editor-panel-footer .fmt-italic { font-style: italic; font-family: Georgia, serif; }
+    .editor-panel-footer .fmt-heading { font-weight: 700; }
+
     .editor-toolbar { height: 52px; padding: 0 8px; gap: 4px; }
     .save-status { font-size: 13px; }
     .note-rev { font-size: 12px; }
@@ -1135,6 +1232,25 @@
   <symbol id="i-bolt" viewBox="0 0 16 16">
     <path d="M9.5 1.5 L3 9 L7 9 L6.5 14.5 L13 7 L9 7 Z"/>
   </symbol>
+  <symbol id="i-link" viewBox="0 0 16 16">
+    <path d="M6.5 9.5 L5 11 a2.5 2.5 0 0 1 -3.5 -3.5 L4 5 a2.5 2.5 0 0 1 3.5 0"/>
+    <path d="M9.5 6.5 L11 5 a2.5 2.5 0 0 1 3.5 3.5 L12 11 a2.5 2.5 0 0 1 -3.5 0"/>
+    <line x1="6" y1="10" x2="10" y2="6"/>
+  </symbol>
+  <symbol id="i-quote" viewBox="0 0 16 16">
+    <line x1="2.5" y1="3.5" x2="2.5" y2="12.5" stroke-width="2"/>
+    <line x1="6" y1="5" x2="13" y2="5"/>
+    <line x1="6" y1="8" x2="13" y2="8"/>
+    <line x1="6" y1="11" x2="11" y2="11"/>
+  </symbol>
+  <symbol id="i-list" viewBox="0 0 16 16">
+    <circle cx="3" cy="4" r="1" fill="currentColor" stroke="none"/>
+    <circle cx="3" cy="8" r="1" fill="currentColor" stroke="none"/>
+    <circle cx="3" cy="12" r="1" fill="currentColor" stroke="none"/>
+    <line x1="6" y1="4" x2="13.5" y2="4"/>
+    <line x1="6" y1="8" x2="13.5" y2="8"/>
+    <line x1="6" y1="12" x2="12" y2="12"/>
+  </symbol>
 </svg>
 
 <!-- Connect panel (shown until URL + auth set) -->
@@ -1212,6 +1328,16 @@
   <div class="editor-panel">
     <div class="editor-toolbar">
       <button class="back-btn" onclick="mobileBack('notes')" title="Back to notes">← </button>
+      <button class="icon-btn fmt-pin-btn" id="fmt-pin-btn" onclick="toggleFormatPin()" title="Show formatting"><svg class="icon"><use href="#i-chevron-right"/></svg></button>
+      <div class="editor-toolbar-fmt" id="editor-toolbar-fmt">
+        <button class="icon-btn fmt-btn" onmousedown="event.preventDefault()" onclick="formatMarkdown('heading')" title="Heading"><span class="fmt-glyph fmt-heading">H</span></button>
+        <button class="icon-btn fmt-btn" onmousedown="event.preventDefault()" onclick="formatMarkdown('bold')" title="Bold (⌘B)"><span class="fmt-glyph fmt-bold">B</span></button>
+        <button class="icon-btn fmt-btn" onmousedown="event.preventDefault()" onclick="formatMarkdown('italic')" title="Italic (⌘I)"><span class="fmt-glyph fmt-italic">I</span></button>
+        <button class="icon-btn fmt-btn" onmousedown="event.preventDefault()" onclick="formatMarkdown('link')" title="Link (⌘⇧K)"><svg class="icon"><use href="#i-link"/></svg></button>
+        <button class="icon-btn fmt-btn" onmousedown="event.preventDefault()" onclick="formatMarkdown('quote')" title="Blockquote"><svg class="icon"><use href="#i-quote"/></svg></button>
+        <button class="icon-btn fmt-btn" onmousedown="event.preventDefault()" onclick="formatMarkdown('list')" title="Bulleted list"><svg class="icon"><use href="#i-list"/></svg></button>
+      </div>
+      <span class="fmt-separator" aria-hidden="true"></span>
       <span class="note-breadcrumb" id="note-breadcrumb"></span>
       <span class="spacer"></span>
       <span class="conn-badge" id="conn-badge" aria-live="polite"></span>
@@ -1231,6 +1357,17 @@
           </button>
           <button onclick="toggleBacklinksPosition()">
             <span class="menu-icon menu-check" id="backlinks-top-check"></span>Backlinks at top
+          </button>
+          <div class="menu-divider"></div>
+          <div class="menu-section-label">Theme</div>
+          <button onclick="setTheme('auto')">
+            <span class="menu-icon menu-check" id="theme-auto-check"></span><span id="theme-auto-label">Auto</span>
+          </button>
+          <button onclick="setTheme('light')">
+            <span class="menu-icon menu-check" id="theme-light-check"></span>Light
+          </button>
+          <button onclick="setTheme('dark')">
+            <span class="menu-icon menu-check" id="theme-dark-check"></span>Dark
           </button>
           <div class="menu-section" id="overflow-note-section" style="display:none">
             <div class="menu-divider"></div>
@@ -1259,6 +1396,14 @@
         <div id="preview" style="display:none"></div>
         <section class="backlinks-section" id="backlinks-section" style="display:none"></section>
       </div>
+    </div>
+    <div class="editor-panel-footer" id="editor-panel-footer">
+      <button class="icon-btn fmt-btn" onmousedown="event.preventDefault()" onclick="formatMarkdown('heading')" title="Heading (cycles H1 / H2 / H3)"><span class="fmt-glyph fmt-heading">H</span></button>
+      <button class="icon-btn fmt-btn" onmousedown="event.preventDefault()" onclick="formatMarkdown('bold')" title="Bold"><span class="fmt-glyph fmt-bold">B</span></button>
+      <button class="icon-btn fmt-btn" onmousedown="event.preventDefault()" onclick="formatMarkdown('italic')" title="Italic"><span class="fmt-glyph fmt-italic">I</span></button>
+      <button class="icon-btn fmt-btn" onmousedown="event.preventDefault()" onclick="formatMarkdown('link')" title="Link"><svg class="icon"><use href="#i-link"/></svg></button>
+      <button class="icon-btn fmt-btn" onmousedown="event.preventDefault()" onclick="formatMarkdown('quote')" title="Blockquote"><svg class="icon"><use href="#i-quote"/></svg></button>
+      <button class="icon-btn fmt-btn" onmousedown="event.preventDefault()" onclick="formatMarkdown('list')" title="Bulleted list"><svg class="icon"><use href="#i-list"/></svg></button>
     </div>
   </div>
 </div>
@@ -1335,6 +1480,7 @@ let SHIP = "";
 let channelId = "";
 let eventSource = null;
 let sseState = "connected";  // "connected" | "reconnecting"
+let landscapeTheme = null;   // "light" | "dark" | null (unknown/auto)
 let msgId = 1;
 
 let notebooks = {};   // id -> notebook
@@ -1844,7 +1990,7 @@ function renderItems() {
     const div = document.createElement("div");
     div.className = "item-row is-folder";
     div.innerHTML = `
-      <span class="item-icon" data-folder-id="${f.id}">
+      <span class="item-icon" data-folder-id="${f.id}" title="Folder actions (rename, delete)">
         <svg class="icon folder-glyph"><use href="#i-folder"/></svg>
         <svg class="icon ellipsis-glyph"><use href="#i-ellipsis"/></svg>
       </span>
@@ -2680,6 +2826,7 @@ function adjustEditorSize(delta) {
 applyEditorSize(loadEditorSize());
 applyBacklinksPosition();
 updateBacklinksCheck();
+updateThemeCheck();
 refreshConnIndicator();
 
 // ── Wiki-links + backlinks ────────────────────────────────────────────────
@@ -2737,6 +2884,115 @@ async function createNoteFromWikiLink(title) {
   }, 300);
 }
 
+// ── Theme ─────────────────────────────────────────────────────────────────
+// Precedence (highest first):
+//   1. local override (overflow menu toggle → localStorage.theme-override)
+//   2. Landscape's %settings — display/theme key
+//   3. OS prefers-color-scheme
+// NB: inline the storage key rather than using a top-level `const` — these
+// functions get called from earlier init lines (updateThemeCheck etc.),
+// where a const would be in the temporal dead zone.
+// (landscapeTheme is declared up top alongside channelId/sseState for the
+// same TDZ reason.)
+
+function systemTheme() {
+  try {
+    return window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+  } catch { return "dark"; }
+}
+function autoTheme() {
+  // What the theme would be with no local override.
+  if (landscapeTheme === "light" || landscapeTheme === "dark") return landscapeTheme;
+  return systemTheme();
+}
+function currentTheme() {
+  const v = localStorage.getItem("theme-override");
+  if (v === "light" || v === "dark") return v;
+  return autoTheme();
+}
+function applyTheme(t) {
+  document.documentElement.setAttribute("data-theme", t);
+}
+function setThemeOverride(t) {
+  if (t === null) localStorage.removeItem("theme-override");
+  else localStorage.setItem("theme-override", t);
+  applyTheme(currentTheme());
+  updateThemeCheck();
+}
+function setTheme(choice) {
+  // Keep the menu open so you can iterate between Auto / Light / Dark.
+  if (choice === "auto") setThemeOverride(null);
+  else setThemeOverride(choice);
+}
+function updateThemeCheck() {
+  const override = localStorage.getItem("theme-override");
+  const isAuto = !(override === "light" || override === "dark");
+  const autoCheck = document.getElementById("theme-auto-check");
+  const lightCheck = document.getElementById("theme-light-check");
+  const darkCheck = document.getElementById("theme-dark-check");
+  const autoLabel = document.getElementById("theme-auto-label");
+  if (autoCheck) autoCheck.textContent = isAuto ? "✓" : "";
+  if (lightCheck) lightCheck.textContent = override === "light" ? "✓" : "";
+  if (darkCheck) darkCheck.textContent = override === "dark" ? "✓" : "";
+  if (autoLabel) {
+    const label = autoTheme() === "light" ? "Light" : "Dark";
+    autoLabel.textContent = `Auto (${label})`;
+  }
+}
+
+// Landscape %settings — best-effort scry. Path follows the %settings agent
+// convention: /x/desk/{desk}/bucket/{bucket}/key/{key}/{mark}
+// Returns "light" | "dark" | null. Tolerant of several response shapes
+// across settings-store forks.
+async function fetchLandscapeTheme() {
+  try {
+    // /all returns the whole settings tree; safer than scrying a single
+    // entry/bucket that may not have been created yet on a fresh ship.
+    const r = await fetch(`${BASE_URL}/~/scry/settings/all.json`, {
+      credentials: "include"
+    });
+    if (!r.ok) return null;
+    const data = await r.json();
+    const pick = (v) => (v === "light" || v === "dark") ? v : null;
+    // Response shape variations seen in the wild:
+    //   { "landscape": { "display": { "theme": "light" } } }
+    //   { "desks": { "landscape": { "display": { "theme": "light" } } } }
+    //   { "all": { ... } }
+    //   entries may be scalar strings OR { s: "light" }
+    const root = data && (data.all || data.desks || data);
+    const landscape = root && (root.landscape || (root.entries && root.entries.landscape));
+    const display = landscape && (landscape.display || (landscape.buckets && landscape.buckets.display));
+    if (!display) return null;
+    const t = display.theme ?? (display.entries && display.entries.theme);
+    if (typeof t === "string") return pick(t);
+    if (t && typeof t === "object") {
+      return pick(t.s) || pick(t.value) || pick(t.theme) || null;
+    }
+    return null;
+  } catch { return null; }
+}
+
+async function refreshLandscapeTheme() {
+  const t = await fetchLandscapeTheme();
+  if (t !== landscapeTheme) {
+    landscapeTheme = t;
+    applyTheme(currentTheme());
+    updateThemeCheck();
+  }
+}
+
+applyTheme(currentTheme());
+refreshLandscapeTheme();  // fire-and-forget; updates once it lands
+try {
+  window.matchMedia("(prefers-color-scheme: light)").addEventListener("change", () => {
+    if (!localStorage.getItem("theme-override")) applyTheme(currentTheme());
+    updateThemeCheck();
+  });
+} catch {}
+// Re-check Landscape theme whenever we come back to the tab — simpler than a
+// live subscription and catches the "user toggled theme in Landscape" case.
+window.addEventListener("focus", refreshLandscapeTheme);
+
 function getBacklinksPosition() {
   return localStorage.getItem("backlinks-position") === "top" ? "top" : "bottom";
 }
@@ -2746,8 +3002,8 @@ function setBacklinksPosition(pos) {
   updateBacklinksCheck();
 }
 function toggleBacklinksPosition() {
+  // Keep the menu open — it's a flip-flop, users may try both quickly.
   setBacklinksPosition(getBacklinksPosition() === "top" ? "bottom" : "top");
-  closeOverflow();
 }
 function updateBacklinksCheck() {
   const check = document.getElementById("backlinks-top-check");
@@ -3841,12 +4097,168 @@ document.addEventListener("keydown", e => {
 });
 
 // ── Markdown formatting (⌘B / ⌘I / ⌘K) ────────────────────────────────────
+// Toggle a single-line prefix ("> ", "- ", etc.) on the line containing the
+// caret. Add it if absent, remove if present, keep caret sensible.
+function toggleLinePrefix(ta, prefix) {
+  const v = ta.value;
+  const s = ta.selectionStart;
+  const lineStart = v.lastIndexOf("\n", s - 1) + 1;
+  const nlIdx = v.indexOf("\n", s);
+  const lineEnd = nlIdx < 0 ? v.length : nlIdx;
+  const line = v.slice(lineStart, lineEnd);
+  let newLine, newCaret;
+  if (line.startsWith(prefix)) {
+    newLine = line.slice(prefix.length);
+    newCaret = Math.max(lineStart, s - prefix.length);
+  } else {
+    newLine = prefix + line;
+    newCaret = s + prefix.length;
+  }
+  ta.value = v.slice(0, lineStart) + newLine + v.slice(lineEnd);
+  ta.selectionStart = ta.selectionEnd = newCaret;
+  onEditorInput();
+}
+
+// Cycle the current line through heading levels: none → # → ## → ### → none.
+function cycleHeading(ta) {
+  const v = ta.value;
+  const s = ta.selectionStart;
+  const lineStart = v.lastIndexOf("\n", s - 1) + 1;
+  const nlIdx = v.indexOf("\n", s);
+  const lineEnd = nlIdx < 0 ? v.length : nlIdx;
+  const line = v.slice(lineStart, lineEnd);
+  const m = line.match(/^(#{1,6}) /);
+  let newLine, caretDelta;
+  if (!m) {
+    newLine = "# " + line;
+    caretDelta = 2;
+  } else if (m[1].length >= 3) {
+    newLine = line.slice(m[0].length);
+    caretDelta = -m[0].length;
+  } else {
+    newLine = "#".repeat(m[1].length + 1) + " " + line.slice(m[0].length);
+    caretDelta = 1;
+  }
+  ta.value = v.slice(0, lineStart) + newLine + v.slice(lineEnd);
+  const newCaret = Math.max(lineStart, s + caretDelta);
+  ta.selectionStart = ta.selectionEnd = newCaret;
+  onEditorInput();
+}
+
+// ── Desktop formatting strip: hover reveal + pin ─────────────────────────
+// Behavior:
+//   - Enter hover area → reveal immediately (unless suppressed).
+//   - Leave hover area → 2s grace timer; re-enter cancels it.
+//   - Timer expires → collapse.
+//   - Clicking the pin button while open → close immediately AND suppress
+//     hover-reveal until the pointer leaves + re-enters the area (so you
+//     don't bounce back open on the same hover session).
+let fmtHideTimer = null;
+let fmtHoverInArea = false;
+let fmtSuppressHover = false;
+
+function fmtIsOpen() {
+  return document.body.classList.contains("format-pinned")
+      || document.body.classList.contains("format-hovered");
+}
+function fmtPinTitle() {
+  const btn = document.getElementById("fmt-pin-btn");
+  if (btn) btn.title = fmtIsOpen() ? "Hide formatting" : "Show formatting";
+}
+
+function fmtEnterArea() {
+  fmtHoverInArea = true;
+  clearTimeout(fmtHideTimer);
+  if (!fmtSuppressHover) {
+    document.body.classList.add("format-hovered");
+    fmtPinTitle();
+  }
+}
+function fmtLeaveArea() {
+  fmtHoverInArea = false;
+  fmtSuppressHover = false;  // leaving clears the click-close suppression
+  if (document.body.classList.contains("format-pinned")) return;
+  clearTimeout(fmtHideTimer);
+  fmtHideTimer = setTimeout(() => {
+    document.body.classList.remove("format-hovered");
+    fmtPinTitle();
+  }, 2000);
+}
+
+function fmtComputeInArea(e) {
+  const tb = document.querySelector(".editor-toolbar");
+  if (tb) {
+    const r = tb.getBoundingClientRect();
+    if (e.clientX >= r.left && e.clientX <= r.right &&
+        e.clientY >= r.top && e.clientY <= r.bottom) return true;
+  }
+  const sc = document.querySelector(".editor-scroll");
+  if (sc) {
+    const r = sc.getBoundingClientRect();
+    if (e.clientX >= r.left && e.clientX <= r.right &&
+        e.clientY >= r.bottom - 80 && e.clientY <= r.bottom) return true;
+  }
+  return false;
+}
+
+function toggleFormatPin() {
+  if (fmtIsOpen()) {
+    // Close immediately; if the pointer is still in the reveal area,
+    // suppress re-opening until the user leaves and comes back.
+    document.body.classList.remove("format-pinned", "format-hovered");
+    clearTimeout(fmtHideTimer);
+    if (fmtHoverInArea) fmtSuppressHover = true;
+    localStorage.setItem("format-pinned", "0");
+  } else {
+    document.body.classList.add("format-pinned");
+    fmtSuppressHover = false;
+    localStorage.setItem("format-pinned", "1");
+  }
+  fmtPinTitle();
+}
+
+function initFormatStrip() {
+  if (localStorage.getItem("format-pinned") === "1") {
+    document.body.classList.add("format-pinned");
+  }
+  fmtPinTitle();
+
+  document.addEventListener("mousemove", (e) => {
+    if (window.innerWidth <= 640) return;
+    const inside = fmtComputeInArea(e);
+    if (inside && !fmtHoverInArea) fmtEnterArea();
+    else if (!inside && fmtHoverInArea) fmtLeaveArea();
+  });
+}
+initFormatStrip();
+
+// If there's no selection but the caret is inside or touching a word,
+// return its character bounds. Used so ⌘B / ⌘I / ⌘K can wrap the
+// current word without the user having to select it first.
+function currentWordBounds(ta) {
+  const v = ta.value;
+  const caret = ta.selectionStart;
+  const isWord = (c) => !!c && /[\p{L}\p{N}_'\-]/u.test(c);
+  let start = caret, end = caret;
+  while (start > 0 && isWord(v[start - 1])) start--;
+  while (end < v.length && isWord(v[end])) end++;
+  return start === end ? null : { start, end };
+}
+
 function formatMarkdown(kind) {
   const ta = document.getElementById("editor");
   if (!ta) return;
+  if (kind === "heading") { cycleHeading(ta); return; }
+  if (kind === "quote")   { toggleLinePrefix(ta, "> "); return; }
+  if (kind === "list")    { toggleLinePrefix(ta, "- "); return; }
   const v = ta.value;
-  const s = ta.selectionStart, e = ta.selectionEnd;
-  const sel = v.slice(s, e);
+  let s = ta.selectionStart, e = ta.selectionEnd;
+  let sel = v.slice(s, e);
+  // No selection → expand to the word the caret is touching, if any.
+  if (!sel) {
+    const w = currentWordBounds(ta);
+    if (w) { s = w.start; e = w.end; sel = v.slice(s, e); }
+  }
 
   if (kind === "link") {
     // If selection looks like a URL, use it as the href; otherwise use selection as text.

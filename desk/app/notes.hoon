@@ -77,7 +77,7 @@
 ::  helper core
 ::
 |_  [=bowl:gall cards=(list card)]
-++  dummy  'sidebar-brand-nested-baseline-v3'
+++  dummy  'format-hover-grace-suppress-v6'
 ++  abet  [(flop cards) state]
 ++  cor   .
 ++  emit  |=(=card cor(cards [card cards]))
