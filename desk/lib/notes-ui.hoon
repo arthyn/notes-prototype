@@ -49,12 +49,41 @@
     color: var(--text-muted);
     flex-shrink: 0;
   }
+  /* Keep name + version baseline-aligned even when fonts differ, without
+     letting the tall mobile hamburger warp the outer flex line's baseline. */
+  .brand-text {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    flex: 1;
+    min-width: 0;
+  }
   /* brand-icon now uses the default .icon opacity */
   .sidebar-brand .brand-name { font-size: 13px; font-weight: 600; }
 
   /* ── connection state label ── */
   #conn-label.reconnecting { color: #d4a72c; }
   #conn-label.disconnected { color: var(--danger); }
+
+  /* Connectivity badge — lives inside the editor toolbar */
+  .conn-badge {
+    display: none;
+    font-family: var(--font);
+    font-size: 11px;
+    font-weight: 500;
+    padding: 0 8px;
+    color: #d4a72c;
+  }
+  .conn-badge.visible { display: inline-flex; align-items: center; }
+  .conn-badge.offline { color: var(--danger); }
+  .conn-badge::before {
+    content: "";
+    display: inline-block;
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    margin-right: 6px;
+    background: currentColor;
+  }
 
   /* ── layout ── */
   .layout {
@@ -164,7 +193,6 @@
     font-family: var(--mono);
     font-size: 11px;
     line-height: 1;
-    padding-top: 4px;
     color: var(--text-muted);
     opacity: 0.6;
     user-select: none;
@@ -1141,8 +1169,10 @@
     </div>
     <div class="sidebar-brand">
       <svg class="icon brand-icon"><use href="#i-notebook"/></svg>
-      <span class="brand-name">Notes</span>
-      <span class="sidebar-version">alpha v0.3.1</span>
+      <div class="brand-text">
+        <span class="brand-name">Notes</span>
+        <span class="sidebar-version">alpha v0.4.0</span>
+      </div>
       <button class="icon-btn sidebar-menu-btn" onclick="toggleSidebarMenu()" title="More"><svg class="icon"><use href="#i-menu"/></svg></button>
     </div>
   </div>
@@ -1186,6 +1216,7 @@
       <button class="back-btn" onclick="mobileBack('notes')" title="Back to notes">← </button>
       <span class="note-breadcrumb" id="note-breadcrumb"></span>
       <span class="spacer"></span>
+      <span class="conn-badge" id="conn-badge" aria-live="polite"></span>
       <span class="save-status" id="save-status"></span>
       <span class="note-rev" id="note-rev"></span>
       <button class="icon-btn" id="zen-btn" onclick="toggleZen()" title="Zen mode"><svg class="icon"><use href="#i-expand"/></svg></button>
@@ -1305,11 +1336,17 @@ let BASE_URL = "";
 let SHIP = "";
 let channelId = "";
 let eventSource = null;
+let sseState = "connected";  // "connected" | "reconnecting"
 let msgId = 1;
 
 let notebooks = {};   // id -> notebook
-let folders = {};     // id -> folder
-let notes = {};       // id -> note
+let folders = {};     // id -> folder (for the active notebook)
+let notes = {};       // id -> note (for the active notebook)
+// Per-notebook caches — lets us render immediately on notebook switch even
+// when the fresh scry fails (offline/reconnecting). Populated on successful
+// load and on switcher-index builds.
+let foldersByNb = {}; // notebookId -> { folderId -> folder }
+let notesByNb = {};   // notebookId -> { noteId -> note }
 let publishedIds = new Set();  // set of published note IDs
 
 let activeNotebookId = null;   // numeric id
@@ -1531,12 +1568,19 @@ function startSSE() {
 }
 
 async function poke(actions) {
-  await fetch(`${BASE_URL}/~/channel/${channelId}`, {
-    method: "PUT",
-    credentials: "include",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(actions)
-  });
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 8000);
+  try {
+    await fetch(`${BASE_URL}/~/channel/${channelId}`, {
+      method: "PUT",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(actions),
+      signal: ctrl.signal
+    });
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 async function pokeAction(action) {
@@ -1555,9 +1599,21 @@ async function pokeAction(action) {
 }
 
 async function scry(path) {
-  const r = await fetch(`${BASE_URL}/~/scry/notes${path}.json`, { credentials: "include" });
-  if (!r.ok) return null;
-  return r.json();
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 6000);
+  try {
+    const r = await fetch(`${BASE_URL}/~/scry/notes${path}.json`, {
+      credentials: "include", signal: ctrl.signal
+    });
+    if (!r.ok) return null;
+    return await r.json();
+  } catch (_) {
+    // Network error, abort, or bad JSON — treat as "no fresh data" so the
+    // caller can fall back to cache instead of propagating the rejection.
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 // ── Event Handling ────────────────────────────────────────────────────────
@@ -1622,6 +1678,7 @@ function pubUrl(flag, noteId) { return `${BASE_URL}/notes/pub/${flag}/${noteId}`
 
 async function loadPublished() {
   const data = await scry("/v0/published");
+  if (!data) return;  // preserve cache if scry failed
   publishedIds = new Set();
   (data || []).forEach(item => {
     const flag = `${item.host}/${item.flagName}`;
@@ -1648,9 +1705,13 @@ async function loadNotebooks() {
 async function loadFolders(notebookId) {
   if (!activeNotebookFlag) return;
   const data = await scry(`/v0/folders/${activeNotebookFlag}`);
-  folders = {};
-  (data || []).forEach(f => folders[f.id] = f);
-  // Default to root folder if no valid folder is selected
+  // Only replace the cache when we got fresh data — otherwise preserve what
+  // we already have so offline/reconnecting users can still walk around.
+  if (data) {
+    folders = {};
+    (data || []).forEach(f => folders[f.id] = f);
+    foldersByNb[notebookId] = { ...folders };
+  }
   if (!activeFolderId || !folders[activeFolderId]) {
     const rootFolder = Object.values(folders).find(f => f.name === "/");
     activeFolderId = rootFolder ? rootFolder.id : null;
@@ -1661,8 +1722,11 @@ async function loadFolders(notebookId) {
 async function loadNotes(notebookId) {
   if (!activeNotebookFlag) return;
   const data = await scry(`/v0/notes/${activeNotebookFlag}`);
-  notes = {};
-  (data || []).forEach(n => notes[n.id] = n);
+  if (data) {
+    notes = {};
+    (data || []).forEach(n => notes[n.id] = n);
+    notesByNb[notebookId] = { ...notes };
+  }
   renderItems();
   renderBacklinks();
 }
@@ -2218,11 +2282,19 @@ function inline(s) {
 // ── Selection ─────────────────────────────────────────────────────────────
 async function selectNotebook(id) {
   if (!await confirmDirty()) return;
+  const changing = activeNotebookId !== id;
   activeNotebookId = id;
   const nb = notebooks[id];
   activeNotebookFlag = nb ? nb.flag : null;
   activeFolderId = null;  // loadFolders will set this to root folder id
   activeNoteId = null;
+  if (changing) {
+    // Restore from per-notebook caches (populated by prior visits or by the
+    // switcher's index build) so the UI paints target-notebook data
+    // immediately — even if the fresh scry below fails offline.
+    folders = foldersByNb[id] ? { ...foldersByNb[id] } : {};
+    notes = notesByNb[id] ? { ...notesByNb[id] } : {};
+  }
   clearEditor();
   renderNotebooks();
   await loadFolders(id);
@@ -2315,8 +2387,17 @@ async function buildSwitcherIndex() {
       scry(`/v0/folders/${flag}`),
       scry(`/v0/notes/${flag}`)
     ]); } catch (_) { return; }
-    const foldersByNb = {};
-    (fdata || []).forEach(f => foldersByNb[f.id] = f);
+    // Stash into the per-notebook caches so cross-notebook nav works offline.
+    if (fdata) {
+      foldersByNb[nb.id] = {};
+      (fdata || []).forEach(f => foldersByNb[nb.id][f.id] = f);
+    }
+    if (ndata) {
+      notesByNb[nb.id] = {};
+      (ndata || []).forEach(n => notesByNb[nb.id][n.id] = n);
+    }
+    const fByNb = {};
+    (fdata || []).forEach(f => fByNb[f.id] = f);
     const nbName = nb.title || "Untitled notebook";
     (fdata || []).forEach(f => {
       if (f.name === "/") return;
@@ -2328,7 +2409,7 @@ async function buildSwitcherIndex() {
       });
     });
     (ndata || []).forEach(n => {
-      const f = foldersByNb[n.folderId];
+      const f = fByNb[n.folderId];
       const folderPart = f && f.name !== "/" ? ` · ${f.name}` : "";
       items.push({
         kind: "note",
@@ -2601,6 +2682,7 @@ function adjustEditorSize(delta) {
 applyEditorSize(loadEditorSize());
 applyBacklinksPosition();
 updateBacklinksCheck();
+refreshConnIndicator();
 
 // ── Wiki-links + backlinks ────────────────────────────────────────────────
 const WIKI_LINK_RE = /\[\[([^\[\]]+?)\]\]/g;
@@ -3877,19 +3959,56 @@ function acknowledgeDisclaimer() {
   document.getElementById("modal-backdrop").classList.remove("open");
 }
 
-function setConnectionState(state) {
-  const el = document.getElementById("conn-label");
-  if (!el) return;
-  el.classList.remove("reconnecting", "disconnected");
-  if (state === "reconnecting") {
-    el.textContent = "Reconnecting…";
-    el.classList.add("reconnecting");
-  } else if (state === "disconnected") {
-    el.textContent = "Disconnected";
-    el.classList.add("disconnected");
-  } else {
-    el.textContent = "Notebooks";
+// Connectivity state is the union of navigator.onLine + the SSE event stream.
+// navigator.onLine false → "offline" (red pill)
+// otherwise, if SSE is in error → "reconnecting" (amber pill)
+// otherwise → connected (no pill)
+function sseSetState(s) { sseState = s; refreshConnIndicator(); }
+
+function refreshConnIndicator() {
+  const label = document.getElementById("conn-label");
+  const badge = document.getElementById("conn-badge");
+  const online = typeof navigator !== "undefined" ? navigator.onLine !== false : true;
+  let mode;
+  if (!online) mode = "offline";
+  else if (sseState === "reconnecting") mode = "reconnecting";
+  else mode = "connected";
+
+  if (label) {
+    label.classList.remove("reconnecting", "disconnected");
+    if (mode === "reconnecting") {
+      label.textContent = "Reconnecting…";
+      label.classList.add("reconnecting");
+    } else if (mode === "offline") {
+      label.textContent = "Offline";
+      label.classList.add("disconnected");
+    } else {
+      label.textContent = "Notebooks";
+    }
   }
+  if (badge) {
+    badge.classList.remove("visible", "offline");
+    if (mode === "reconnecting") {
+      badge.textContent = "Reconnecting";
+      badge.title = "SSE stream is reconnecting";
+      badge.classList.add("visible");
+    } else if (mode === "offline") {
+      badge.textContent = "Offline";
+      badge.title = "No network — reconnect to save changes";
+      badge.classList.add("visible", "offline");
+    } else {
+      badge.textContent = "";
+      badge.removeAttribute("title");
+    }
+  }
+}
+
+// Backward-compatible alias used by the SSE hooks elsewhere.
+function setConnectionState(state) { sseSetState(state); }
+
+if (typeof window !== "undefined") {
+  window.addEventListener("online", refreshConnIndicator);
+  window.addEventListener("offline", refreshConnIndicator);
 }
 function icon(id) {
   return `<svg class="icon"><use href="#i-${id}"/></svg>`;
