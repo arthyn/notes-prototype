@@ -155,6 +155,18 @@
           ['note' (note note.evt)]
           ['actor' s+(scot %p actor.evt)]
       ==
+        %invite-received
+      :~  ['type' s+'invite-received']
+          ['host' s+(scot %p ship.flag.evt)]
+          ['flagName' s+name.flag.evt]
+          ['from' s+(scot %p from.evt)]
+          ['sentAt' (numb (da-to-unix sent-at.evt))]
+      ==
+        %invite-removed
+      :~  ['type' s+'invite-removed']
+          ['host' s+(scot %p ship.flag.evt)]
+          ['flagName' s+name.flag.evt]
+      ==
     ==
   ::
   ++  response
@@ -239,6 +251,24 @@
         ~|(bad-visibility+vis.raw !!)
       :-  %set-visibility
       [nid.raw ?:(=('public' vis.raw) %public %private)]
+    ::
+        %'invite'
+      :-  %invite
+      ((ot ~[['notebookId' ni] ['ship' (su ;~(pfix sig fed:ag))]]) val)
+    ::
+        %'send-invite'
+      :-  %send-invite
+      ((ot ~[['notebookId' ni] ['ship' (su ;~(pfix sig fed:ag))]]) val)
+    ::
+        %'accept-invite'
+      :-  %accept-invite
+      =/  raw  ((ot ~[['ship' (su ;~(pfix sig fed:ag))] ['name' so]]) val)
+      [-.raw +.raw]
+    ::
+        %'decline-invite'
+      :-  %decline-invite
+      =/  raw  ((ot ~[['ship' (su ;~(pfix sig fed:ag))] ['name' so]]) val)
+      [-.raw +.raw]
     ::
         %'join'
       :-  %join

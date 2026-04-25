@@ -6,7 +6,7 @@
 ::
 |%
 +$  card  card:agent:gall
-+$  current-state  state-4:notes
++$  current-state  state-6:notes
 --
 ::
 =|  current-state
@@ -77,7 +77,7 @@
 ::  helper core
 ::
 |_  [=bowl:gall cards=(list card)]
-++  dummy  'inline-md-token-placeholder-v5'
+++  dummy  'invite-poke-ack-wire-v12'
 ++  abet  [(flop cards) state]
 ++  cor   .
 ++  emit  |=(=card cor(cards [card cards]))
@@ -98,27 +98,37 @@
     ?:  ?=(^ raw)
       ;;(@ -.raw)
     0
-  ::  state-4: current format
-  ?:  =(tag %4)
+  ::  state-6: current format
+  ?:  =(tag %6)
     =/  s=current-state  !<(current-state old)
     =.  state  s
     cor
-  ::  state-3: migrate by adding empty visibilities map (all default to private)
+  ::  state-5: drop any pending invites (old shape lacks title)
+  ?:  =(tag %5)
+    =/  s=state-5:notes  !<(state-5:notes old)
+    =.  state  [%6 books.s next-id.s published.s visibilities.s ~]
+    cor
+  ::  state-4: add empty invites map
+  ?:  =(tag %4)
+    =/  s=state-4:notes  !<(state-4:notes old)
+    =.  state  [%6 books.s next-id.s published.s visibilities.s ~]
+    cor
+  ::  state-3: migrate by adding empty visibilities + invites
   ?:  =(tag %3)
     =/  s=state-3:notes  !<(state-3:notes old)
-    =.  state  [%4 books.s next-id.s published.s ~]
+    =.  state  [%6 books.s next-id.s published.s ~ ~]
     cor
   ::  state-2: migrate by dropping published entries
   ::  (old map was keyed by bare note-id — cannot be safely re-keyed post-hoc
   ::  because different notebooks may have the same note-id)
   ?:  =(tag %2)
     =/  s=state-2:notes  !<(state-2:notes old)
-    =.  state  [%4 books.s next-id.s ~ ~]
+    =.  state  [%6 books.s next-id.s ~ ~ ~]
     cor
   ::  state-1: migrate by adding empty published map
   ?:  =(tag %1)
     =/  s=state-1:notes  !<(state-1:notes old)
-    =.  state  [%4 books.s next-id.s ~ ~]
+    =.  state  [%6 books.s next-id.s ~ ~ ~]
     cor
   ::  state-0 or unknown: start fresh
   ::  acceptable during this migration; task says single-player breakage is ok
@@ -191,6 +201,15 @@
         (find-flag-by-nid notebook-id.act)
       =.  published.state  (~(del by published.state) [flag note-id.act])
       cor
+    ::  cross-ship invite flow (not notebook-scoped on this side)
+    ?:  ?=(%send-invite -.act)
+      (handle-send-invite notebook-id.act who.act)
+    ?:  ?=(%notify-invite -.act)
+      (handle-notify-invite flag.act title.act src.bowl)
+    ?:  ?=(%accept-invite -.act)
+      (handle-accept-invite flag.act)
+    ?:  ?=(%decline-invite -.act)
+      (handle-decline-invite flag.act)
     ::  use explicit flag from _flag field if present,
     ::  otherwise fall back to notebook-id lookup
     =/  =flag:notes
@@ -257,6 +276,115 @@
   ?>  (~(has by books.state) flag)
   no-abet:no-leave:(no-abed:no-core flag)
 ::
+::  +handle-send-invite: owner-only, fired locally. Pre-add the target ship
+::  to the notebook's member list (so a later %join-remote from them is
+::  accepted) and notify their %notes agent so they see a pending invite.
+::  Bundles the notebook title in the cross-ship poke so the recipient
+::  sees a real name, not a numeric flag, before they accept.
+++  handle-send-invite
+  |=  [nid=@ud who=ship]
+  ^+  cor
+  =/  =flag:notes  (find-flag-by-nid nid)
+  ?>  =(ship.flag our.bowl)
+  =/  entry=[=net:notes =notebook-state:notes]
+    (~(got by books.state) flag)
+  =/  title=@t  title.notebook.notebook-state.entry
+  ::  pre-add via the notebook's se-core (also enforces ownership)
+  =.  cor
+    =/  cmd=command:notes  [%invite nid who src.bowl]
+    se-abet:(se-poke:(se-abed:se-core flag) cmd)
+  ::  poke the invitee's notes agent with a notify-invite action
+  =/  notify=action:notes  [%notify-invite flag title]
+  =/  ra=routed-action:notes  [`flag notify]
+  =/  =wire  /notes/invite/(scot %p who)/(scot %p ship.flag)/[name.flag]
+  %-  emit
+  [%pass wire %agent [who %notes] %poke notes-action+!>(ra)]
+::
+::  +handle-notify-invite: a remote host telling us we've been invited to
+::  their notebook. The sender must be the host of the flag.
+++  handle-notify-invite
+  |=  [=flag:notes title=@t from=ship]
+  ^+  cor
+  ?<  =(from our.bowl)        ::  sanity: we don't invite ourselves
+  ?>  =(from ship.flag)       ::  the inviter must be the notebook's host
+  ::  no-op if we're already a member or already invited
+  ?:  (~(has by books.state) flag)  cor
+  ?:  (~(has by invites.state) flag)  cor
+  =/  info=invite-info:notes  [from now.bowl title]
+  =.  invites.state  (~(put by invites.state) flag info)
+  (give-inbox-received flag from now.bowl title)
+::
+::  +handle-accept-invite: user accepted a pending invite. Fire join-remote
+::  and drop the invite from our cache.
+++  handle-accept-invite
+  |=  =flag:notes
+  ^+  cor
+  ?>  =(src.bowl our.bowl)
+  ::  drop the invite first so the UI updates immediately
+  =.  invites.state  (~(del by invites.state) flag)
+  =.  cor  (give-inbox-removed flag)
+  ::  if we already track this notebook, nothing else to do
+  ?:  (~(has by books.state) flag)  cor
+  (join-remote flag)
+::
+::  +handle-decline-invite: user declined a pending invite. Locally drop it.
+::  We don't notify the host (avoids leaking presence info).
+++  handle-decline-invite
+  |=  =flag:notes
+  ^+  cor
+  ?>  =(src.bowl our.bowl)
+  ?.  (~(has by invites.state) flag)  cor
+  =.  invites.state  (~(del by invites.state) flag)
+  (give-inbox-removed flag)
+::
+::  +give-inbox-received: emit an invite-received event on /v0/inbox/stream
+::  as raw JSON so we don't have to widen u-notes (which would break the
+::  state-5 → state-6 migration cast).
+++  give-inbox-received
+  |=  [=flag:notes from=ship sent-at=@da title=@t]
+  ^+  cor
+  =/  evt=json
+    %-  pairs:enjs:format
+    :~  ['type' s+'invite-received']
+        ['host' s+(scot %p ship.flag)]
+        ['flagName' s+name.flag]
+        ['from' s+(scot %p from)]
+        ['sentAt' (numb:enjs:format (div (sub sent-at ~1970.1.1) ~s1))]
+        ['title' s+title]
+    ==
+  =/  jon=json
+    %-  pairs:enjs:format  :~  ['response' s+'update']  ['update' evt]  ==
+  %-  give
+  [%fact [/v0/inbox/stream]~ json+!>(jon)]
+::
+::  +give-inbox-removed: emit an invite-removed event on /v0/inbox/stream.
+++  give-inbox-removed
+  |=  =flag:notes
+  ^+  cor
+  =/  evt=json
+    %-  pairs:enjs:format
+    :~  ['type' s+'invite-removed']
+        ['host' s+(scot %p ship.flag)]
+        ['flagName' s+name.flag]
+    ==
+  =/  jon=json
+    %-  pairs:enjs:format  :~  ['response' s+'update']  ['update' evt]  ==
+  %-  give
+  [%fact [/v0/inbox/stream]~ json+!>(jon)]
+::
+::  +notebooks-changed-card: a fact telling subscribed UIs to re-scry the
+::  notebook list. Emitted when the books map changes (snapshot landed,
+::  notebook created/deleted, etc).
+++  notebooks-changed-card
+  ^-  card
+  =/  evt=json
+    %-  pairs:enjs:format  :~  ['type' s+'notebooks-changed']  ==
+  =/  jon=json
+    %-  pairs:enjs:format
+    :~  ['response' s+'update']  ['update' evt]
+    ==
+  [%give %fact [/v0/inbox/stream]~ json+!>(jon)]
+::
 ++  watch
   |=  =(pole knot)
   ^+  cor
@@ -291,6 +419,11 @@
     =/  snap=response:notes  [%snapshot flag notebook-state.u.entry]
     %-  give
     [%fact [`path`pole]~ notes-response+!>(snap)]
+  ::
+      [%v0 %inbox %stream ~]
+    ::  local UI subscription for pending invites — must be our own ship
+    ?>  =(src.bowl our.bowl)
+    cor
   ==
 ::
 ++  peek
@@ -399,6 +532,19 @@
           ['noteId' (numb:enjs:format note-id)]
       ==
     ``json+!>([%a items])
+    ::  /x/v0/invites — pending invites we've received
+      [%x %v0 %invites ~]
+    =/  items=(list json)
+      %+  turn  ~(tap by invites.state)
+      |=  [=flag:notes info=invite-info:notes]
+      %-  pairs:enjs:format
+      :~  ['host' s+(scot %p ship.flag)]
+          ['flagName' s+name.flag]
+          ['from' s+(scot %p from.info)]
+          ['sentAt' (numb:enjs:format (div (sub sent-at.info ~1970.1.1) ~s1))]
+          ['title' s+title.info]
+      ==
+    ``json+!>([%a items])
   ==
 ::
 ++  agent
@@ -423,6 +569,14 @@
       ::  poke failed — remove placeholder from books
       =.  books.state  (~(del by books.state) flag)
       cor
+    ==
+  ::
+      [%notes %invite who=@ ship=@ name=@ ~]
+    ::  ack/nack from a notify-invite poke we sent to an invitee. Nothing
+    ::  to do on success; on failure (recipient has no %notes agent, etc.)
+    ::  we just shrug — the pre-added member entry on our side is harmless.
+    ?+  -.sign  cor
+        %poke-ack  cor
     ==
   ==
 ::
@@ -467,6 +621,11 @@
       %rename-notebook      notebook-id.act
       %delete-notebook      notebook-id.act
       %set-visibility       notebook-id.act
+      %invite               notebook-id.act
+      %send-invite          notebook-id.act
+      %notify-invite        0
+      %accept-invite        0
+      %decline-invite       0
       %join                 notebook-id.act
       %leave                notebook-id.act
       %join-remote          0
@@ -495,6 +654,11 @@
       %rename-notebook      notebook-id.cmd
       %delete-notebook      notebook-id.cmd
       %set-visibility       notebook-id.cmd
+      %invite               notebook-id.cmd
+      %send-invite          notebook-id.cmd
+      %notify-invite        0
+      %accept-invite        0
+      %decline-invite       0
       %join                 notebook-id.cmd
       %leave                notebook-id.cmd
       %join-remote          0
@@ -521,6 +685,11 @@
       %rename-notebook      [%rename-notebook notebook-id.act title.act actor]
       %delete-notebook      [%delete-notebook notebook-id.act actor]
       %set-visibility       [%set-visibility notebook-id.act visibility.act actor]
+      %invite               [%invite notebook-id.act who.act actor]
+      %send-invite          [%send-invite notebook-id.act who.act actor]
+      %notify-invite        [%notify-invite flag.act title.act actor]
+      %accept-invite        [%accept-invite flag.act actor]
+      %decline-invite       [%decline-invite flag.act actor]
       %join                 [%join notebook-id.act actor]
       %leave                [%leave notebook-id.act actor]
       %join-remote          [%join-remote flag.act actor]
@@ -662,6 +831,8 @@
     =.  notebook-state  nb-state
     =.  books.state
       (~(put by books.state) flag [[%pub *log:notes] notebook-state])
+    ::  notify the inbox stream so subscribed UIs refresh their notebook list
+    =.  se-core  (emit notebooks-changed-card)
     (se-update [%notebook-created nb our.bowl])
   ::
   ::  +se-poke: dispatch a command to the right handler
@@ -674,6 +845,13 @@
         %rename-notebook      (se-rename-notebook cmd)
         %delete-notebook      (se-delete-notebook cmd)
         %set-visibility       (se-set-visibility cmd)
+        %invite               (se-invite cmd)
+        ::  send/notify/accept/decline-invite are top-level commands; if
+        ::  we ever route them through se-poke they no-op here.
+        %send-invite          se-core
+        %notify-invite        se-core
+        %accept-invite        se-core
+        %decline-invite       se-core
         %join                 (se-join cmd)
         %leave                (se-leave cmd)
         %join-remote          (se-join-remote cmd)
@@ -728,6 +906,20 @@
     =.  visibilities.state
       (~(put by visibilities.state) flag visibility.cmd)
     (se-update [%notebook-visibility-changed notebook-id.cmd visibility.cmd actor.cmd])
+  ::
+  ::  +se-invite: owner adds a ship to the notebook's member set so a
+  ::  private notebook will accept their %join (or %join-remote).
+  ++  se-invite
+    |=  cmd=command:notes
+    ?>  ?=(%invite -.cmd)
+    ^+  se-core
+    ?>  (se-is-owner actor.cmd)
+    ::  no-op if already a member, otherwise add as %editor
+    ?:  (~(has by notebook-members.notebook-state) who.cmd)
+      se-core
+    =.  notebook-members.notebook-state
+      (~(put by notebook-members.notebook-state) who.cmd %editor)
+    (se-update [%member-joined notebook-id.cmd who.cmd %editor actor.cmd])
   ::
   ::  +se-visibility: current visibility (private by default)
   ++  se-visibility
@@ -1205,6 +1397,10 @@
       =.  notebook-state  notebook-state.response
       ?>  ?=(%sub -.net)
       =.  net  net(init &)
+      ::  notify the inbox stream so the UI can refresh its sidebar — the
+      ::  notebook is fully populated now. Push the card directly onto
+      ::  the outer cards list so we don't disturb no-core's net narrowing.
+      =.  cards  [notebooks-changed-card cards]
       ::  broadcast snapshot to local UI subscribers
       %-  give
       [%fact [/v0/notes/(scot %p ship.flag)/[name.flag]/stream]~ notes-response+!>(response)]
@@ -1305,6 +1501,9 @@
       =.  notes.notebook-state
         (~(put by notes.notebook-state) id.note.upd note.upd)
       no-core
+    ::
+        %invite-received  no-core   :: present for type compat; never replayed
+        %invite-removed   no-core
     ==
   --
 --

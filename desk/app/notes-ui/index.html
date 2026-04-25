@@ -156,6 +156,35 @@
   body.sidebar-collapsed #sidebar-search-btn,
   body.sidebar-collapsed #sidebar-switcher-btn { display: inline-flex; }
   .sidebar-list { flex: 1; overflow-y: auto; padding-bottom: 8px; min-height: 0; }
+
+  /* Pending notebook invites — appears only when invites is non-empty */
+  .invites-section {
+    border-top: 1px solid var(--border);
+    padding: 8px 12px 10px;
+    flex-shrink: 0;
+    background: rgba(124,106,247,0.04);
+  }
+  .invites-header {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+  }
+  .invites-list { display: flex; flex-direction: column; gap: 6px; }
+  .invite-item {
+    display: flex; flex-direction: column; gap: 4px;
+    padding: 8px 10px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 12px;
+  }
+  .invite-title { color: var(--text); font-weight: 500; }
+  .invite-from { color: var(--text-muted); font-size: 11px; font-family: var(--mono); word-break: break-all; }
+  .invite-actions { display: flex; gap: 6px; margin-top: 2px; }
+  .invite-actions .btn { flex: 1; font-size: 12px; padding: 4px 8px; }
   .nb-item {
     display: flex;
     flex-wrap: wrap;
@@ -979,6 +1008,15 @@
   body.zen-mode .editor-panel { flex: 1; }
   body.zen-mode #zen-exit-btn { display: inline-flex; }
 
+  /* ── embed mode (single-notebook, no sidebar) ── */
+  body.embed-mode .sidebar { display: none !important; }
+  body.embed-mode .resizer[data-target="sidebar"] { display: none !important; }
+  body.embed-mode #sidebar-expand-btn { display: none !important; }
+  /* Import buttons live in the gear menu only when embedded; the sidebar
+     entries below are also unreachable since the sidebar itself is hidden. */
+  .nb-menu-import { display: none; }
+  body.embed-mode .nb-menu-import { display: flex; }
+
   /* ── mobile responsive ── */
   @media (max-width: 640px) {
     .back-btn { display: inline-flex; align-items: center; }
@@ -1256,6 +1294,12 @@
     <circle cx="5.5" cy="6" r="1.2" fill="currentColor" stroke="none"/>
     <path d="M2 11.5 L6 7.5 L9 10 L11.5 7 L14 10.5"/>
   </symbol>
+  <symbol id="i-user-plus" viewBox="0 0 16 16">
+    <circle cx="6" cy="5" r="2.5"/>
+    <path d="M1.5 13.5 a4.5 4.5 0 0 1 9 0"/>
+    <line x1="12.5" y1="3.5" x2="12.5" y2="8.5"/>
+    <line x1="10" y1="6" x2="15" y2="6"/>
+  </symbol>
 </svg>
 
 <!-- Connect panel (shown until URL + auth set) -->
@@ -1280,6 +1324,10 @@
       </div>
     </div>
     <div class="sidebar-list" id="notebooks-list"></div>
+    <div class="invites-section" id="invites-section" style="display:none">
+      <div class="invites-header">Invites</div>
+      <div class="invites-list" id="invites-list"></div>
+    </div>
     <div class="sidebar-actions">
       <button class="sidebar-action" onclick="openModal(&quot;add-notebook&quot;)"><svg class="icon"><use href="#i-plus"/></svg> Add notebook</button>
       <button class="sidebar-action" id="import-files-btn" onclick="triggerImport(false)"><svg class="icon"><use href="#i-download"/></svg> Import files</button>
@@ -1308,12 +1356,15 @@
       <button class="icon-btn folder-up-btn" id="folder-up-btn" onclick="folderUp()" style="display:none" title="Up one folder"><svg class="icon"><use href="#i-arrow-up"/></svg></button>
       <span id="folder-label">Notes</span>
       <div class="panel-actions" id="panel-actions">
+        <button class="icon-btn" id="notebook-invite-btn" onclick="openInviteModal()" title="Invite a ship" style="display:none"><svg class="icon"><use href="#i-user-plus"/></svg></button>
         <div class="overflow-wrap" id="notebook-settings-wrap" style="display:none">
           <button class="icon-btn" id="notebook-settings-btn" onclick="toggleNotebookSettings()" title="Notebook settings"><svg class="icon"><use href="#i-gear"/></svg></button>
           <div class="overflow-menu" id="notebook-settings-menu">
             <button id="nb-menu-rename" onclick="openRenameNotebook()">Rename notebook</button>
             <button id="nb-menu-visibility" onclick="toggleNotebookVisibility()">Make public</button>
             <button id="nb-menu-copy-flag" onclick="copyActiveFlag()">Copy notebook ID</button>
+            <button class="nb-menu-import" id="nb-menu-import-files" onclick="closeNotebookSettings(); triggerImport(false)">Import files</button>
+            <button class="nb-menu-import" id="nb-menu-import-folder" onclick="closeNotebookSettings(); triggerImport(true)">Import folder</button>
             <button id="nb-menu-export" onclick="exportNotebook()">Export notebook</button>
             <button id="nb-menu-delete" class="danger" onclick="deleteNotebook()">Delete notebook</button>
             <button id="nb-menu-leave" class="danger" onclick="leaveRemoteNotebook()" style="display:none">Leave notebook</button>
@@ -1499,6 +1550,7 @@ let notes = {};       // id -> note (for the active notebook)
 let foldersByNb = {}; // notebookId -> { folderId -> folder }
 let notesByNb = {};   // notebookId -> { noteId -> note }
 let publishedIds = new Set();  // set of published note IDs
+let pendingInvites = {};       // "~host/name" -> { from, sentAt }
 
 let activeNotebookId = null;   // numeric id
 let activeNotebookFlag = null; // "~ship/name" for scry paths
@@ -1552,9 +1604,14 @@ async function connect() {
   setConnectionState("connected");
 
   openChannel();
-  await loadNotebooks();
-  await loadPublished();
-  const applied = await applyRoute();
+  // loadNotebooks, loadPublished, loadInvites are independent scries — fire
+  // them in parallel to shave roundtrips off the bootstrap.
+  await Promise.all([loadNotebooks(), loadPublished(), loadInvites()]);
+  subscribeInbox();
+  // Embed mode pins the UI to a specific notebook from the URL; this takes
+  // precedence over both the route and any restored localStorage selection.
+  const embedApplied = await applyEmbedNotebook();
+  const applied = embedApplied || (await applyRoute());
   // Only fall back to localStorage on desktop — on mobile each "screen" should
   // correspond to a URL, and opening a bare /notes/ URL means start fresh.
   if (!applied && !isMobile()) {
@@ -1630,7 +1687,7 @@ async function applyRoute() {
   const nid = m[4] ? parseInt(m[4], 10) : null;
 
   const flag = `${host}/${flagName}`;
-  const nb = Object.values(notebooks).find(x => x.flag === flag);
+  const nb = await ensureJoinedToFlag(flag);
   if (!nb) return false;
 
   applyingRoute = true;
@@ -1666,6 +1723,76 @@ function clearSelection() {
   renderNotebooks();
   renderItems();
   if (isMobile()) mobileSetView("notebooks");
+}
+
+// When ?notebook=~ship/name is in the URL, lock the UI to that notebook.
+// If the notebook isn't joined yet, prompt the user to join via the same
+// shared-join dialog used for any /notes/nb/<host>/<name> URL.
+async function applyEmbedNotebook() {
+  const flag = EMBED_PARAMS.notebookFlag;
+  if (!flag || !flag.includes("/")) return false;
+  const nb = await ensureJoinedToFlag(flag);
+  if (!nb) return false;
+  applyingRoute = true;
+  try {
+    if (activeNotebookId !== nb.id) await selectNotebook(nb.id);
+    if (isMobile()) mobileSetView("notes");
+  } finally {
+    applyingRoute = false;
+  }
+  return true;
+}
+
+// ── Shared-notebook join flow ────────────────────────────────────────────
+// Used by both the URL router and the embed mode entry. If the notebook
+// at `flag` is already in our cache, return it. Otherwise, ask the user
+// via a modal whether to join, then fire join-remote and poll for the
+// notebook to land in our cache. Returns the notebook record or null.
+let pendingShareFlag = null;
+let pendingShareResolve = null;
+
+async function ensureJoinedToFlag(flag) {
+  if (!flag || !flag.includes("/")) return null;
+  let nb = Object.values(notebooks).find(n => n.flag === flag);
+  if (nb) return nb;
+  const wantJoin = await promptJoinShared(flag);
+  if (!wantJoin) return null;
+  return joinRemoteAndWait(flag);
+}
+
+function promptJoinShared(flag) {
+  return new Promise((resolve) => {
+    pendingShareFlag = flag;
+    pendingShareResolve = resolve;
+    openModal("join-shared");
+  });
+}
+function confirmSharedJoin() {
+  document.getElementById("modal-backdrop").classList.remove("open");
+  if (pendingShareResolve) { pendingShareResolve(true); pendingShareResolve = null; }
+}
+function declineSharedJoin() {
+  document.getElementById("modal-backdrop").classList.remove("open");
+  if (pendingShareResolve) { pendingShareResolve(false); pendingShareResolve = null; }
+}
+
+async function joinRemoteAndWait(flag) {
+  const parts = flag.split("/");
+  const ship = parts[0].startsWith("~") ? parts[0] : "~" + parts[0];
+  const name = parts.slice(1).join("/");
+  try {
+    await pokeAction({ "join-remote": { ship, name } });
+  } catch (e) {
+    return null;
+  }
+  // join-remote propagates asynchronously; give the host a few seconds.
+  for (let i = 0; i < 8; i++) {
+    await new Promise((r) => setTimeout(r, 750));
+    await loadNotebooks();
+    const nb = Object.values(notebooks).find(n => n.flag === flag);
+    if (nb) return nb;
+  }
+  return null;
 }
 
 window.addEventListener("popstate", async () => {
@@ -1781,6 +1908,11 @@ function handleEvent(msg) {
   if (data.response === "update") {
     const evt = data.update;
     const type = evt.type;
+    // Inbox events (received on /v0/inbox/stream) — route to handler.
+    if (type === "invite-received" || type === "invite-removed" || type === "notebooks-changed") {
+      applyInboxEvent(evt);
+      return;
+    }
     // Reload relevant data on events
     if (type === "notebook-created" || type === "notebook-renamed" || type === "notebook-visibility-changed") loadNotebooks();
     else if (type === "notebook-deleted") handleNotebookDeleted(evt.notebookId);
@@ -1834,6 +1966,94 @@ async function loadPublished() {
   (data || []).forEach(item => {
     const flag = `${item.host}/${item.flagName}`;
     publishedIds.add(pubKey(flag, item.noteId));
+  });
+}
+
+// ── Invite inbox ─────────────────────────────────────────────────────────
+async function loadInvites() {
+  const data = await scry("/v0/invites");
+  if (!data) return;
+  pendingInvites = {};
+  (data || []).forEach(item => {
+    const flag = `${item.host}/${item.flagName}`;
+    pendingInvites[flag] = { from: item.from, sentAt: item.sentAt, title: item.title || "" };
+  });
+  renderInvites();
+}
+
+// SSE subscription on /v0/inbox/stream — receives invite-received and
+// invite-removed events as the host sends/cancels invites in real time.
+async function subscribeInbox() {
+  if (!SHIP) return;
+  await poke([{
+    id: msgId++, action: "subscribe",
+    ship: SHIP.replace("~", ""),
+    app: "notes", path: "/v0/inbox/stream"
+  }]);
+}
+
+function applyInboxEvent(evt) {
+  if (!evt || !evt.type) return;
+  if (evt.type === "notebooks-changed") {
+    loadNotebooks();
+    return;
+  }
+  const flag = `${evt.host}/${evt.flagName}`;
+  if (evt.type === "invite-received") {
+    pendingInvites[flag] = { from: evt.from, sentAt: evt.sentAt, title: evt.title || "" };
+    renderInvites();
+  } else if (evt.type === "invite-removed") {
+    delete pendingInvites[flag];
+    renderInvites();
+  }
+}
+
+async function acceptInvite(flag) {
+  const parts = flag.split("/");
+  const ship = parts[0].startsWith("~") ? parts[0] : "~" + parts[0];
+  const name = parts.slice(1).join("/");
+  await pokeAction({ "accept-invite": { ship, name } });
+  // The agent will emit a notebooks-changed fact on /v0/inbox/stream once
+  // the host's snapshot lands, which triggers loadNotebooks. Belt-and-
+  // suspenders: also fall back to a single delayed reload in case the SSE
+  // subscription dropped a beat.
+  setTimeout(() => loadNotebooks(), 2500);
+}
+
+async function declineInvite(flag) {
+  const parts = flag.split("/");
+  const ship = parts[0].startsWith("~") ? parts[0] : "~" + parts[0];
+  const name = parts.slice(1).join("/");
+  await pokeAction({ "decline-invite": { ship, name } });
+}
+
+function renderInvites() {
+  const section = document.getElementById("invites-section");
+  const list = document.getElementById("invites-list");
+  if (!section || !list) return;
+  const entries = Object.entries(pendingInvites);
+  if (entries.length === 0) {
+    section.style.display = "none";
+    list.innerHTML = "";
+    return;
+  }
+  section.style.display = "";
+  list.innerHTML = entries.map(([flag, info]) => `
+    <div class="invite-item">
+      <div class="invite-title">${esc(info.title || flag)}</div>
+      <div class="invite-from">from ${esc(info.from)}</div>
+      <div class="invite-actions">
+        <button class="btn btn-secondary" data-flag="${esc(flag)}" data-action="decline">Decline</button>
+        <button class="btn btn-primary"   data-flag="${esc(flag)}" data-action="accept">Accept</button>
+      </div>
+    </div>
+  `).join("");
+  list.querySelectorAll("button[data-flag]").forEach(btn => {
+    btn.onclick = (e) => {
+      const f = btn.dataset.flag;
+      if (btn.dataset.action === "accept") acceptInvite(f);
+      else declineInvite(f);
+    };
   });
 }
 
@@ -1937,12 +2157,14 @@ function updateHeader() {
   const newFolderBtn = document.getElementById("new-folder-btn");
   const newNoteBtn = document.getElementById("new-note-btn");
   const settingsWrap = document.getElementById("notebook-settings-wrap");
+  const inviteBtn = document.getElementById("notebook-invite-btn");
   if (!activeNotebookId) {
     labelEl.textContent = "Notes";
     upBtn.style.display = "none";
     newFolderBtn.style.display = "none";
     newNoteBtn.style.display = "none";
     settingsWrap.style.display = "none";
+    inviteBtn.style.display = "none";
     return;
   }
   newFolderBtn.style.display = "";
@@ -1967,10 +2189,13 @@ function updateHeader() {
     } else {
       visBtn.style.display = "none";
     }
+    // Invite is owner-only: only visible when this ship hosts the notebook.
+    inviteBtn.style.display = isLocal ? "" : "none";
   } else {
     labelEl.textContent = folders[activeFolderId]?.name || "Folder";
     upBtn.style.display = "";
     settingsWrap.style.display = "none";
+    inviteBtn.style.display = "none";
   }
 }
 
@@ -2453,8 +2678,8 @@ async function selectNotebook(id) {
   }
   clearEditor();
   renderNotebooks();
-  await loadFolders(id);
-  await loadNotes(id);
+  // Folders and notes are independent; fetch in parallel.
+  await Promise.all([loadFolders(id), loadNotes(id)]);
   subscribeEvents();
   saveSelection();
   pushRoute();
@@ -2525,9 +2750,13 @@ function onSwitcherBackdropClick(e) {
 
 async function buildSwitcherIndex() {
   const items = [];
-  const nbs = Object.values(notebooks);
-  // Always include notebooks immediately — fast path.
-  for (const nb of nbs) {
+  // In embed mode the UI is locked to a single notebook — skip notebook
+  // results entirely and only index folders + notes for that notebook.
+  const allNbs = Object.values(notebooks);
+  const nbs = EMBED_PARAMS.embed
+    ? allNbs.filter(nb => nb.id === activeNotebookId)
+    : allNbs;
+  if (!EMBED_PARAMS.embed) for (const nb of nbs) {
     items.push({
       kind: "notebook",
       label: nb.title || "Untitled notebook",
@@ -3801,6 +4030,18 @@ function openModal(type) {
       </div>
     `;
     box.querySelector("#m-flag").addEventListener("keydown", e => { if (e.key==="Enter") joinNotebook(); });
+  } else if (type === "join-shared") {
+    const flag = pendingShareFlag || "";
+    box.innerHTML = `
+      <h3>Join shared notebook</h3>
+      <p style="font-size:13px;color:var(--text-muted);line-height:1.5;margin-bottom:14px">
+        This link points to <code style="font-family:var(--mono);background:var(--surface2);padding:1px 5px;border-radius:3px">${esc(flag)}</code>, which you haven't joined yet. Joining will fetch its content from the host.
+      </p>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" onclick="declineSharedJoin()">Cancel</button>
+        <button class="btn btn-primary" onclick="confirmSharedJoin()" autofocus>Join</button>
+      </div>
+    `;
   } else if (type === "rename-notebook") {
     if (!activeNotebookId) return;
     const nb = notebooks[activeNotebookId];
@@ -3814,6 +4055,22 @@ function openModal(type) {
       </div>
     `;
     box.querySelector("#m-title").addEventListener("keydown", e => { if (e.key==="Enter") renameNotebook(); });
+  } else if (type === "invite-ship") {
+    if (!activeNotebookId) return;
+    const nb = notebooks[activeNotebookId];
+    if (!nb) return;
+    box.innerHTML = `
+      <h3>Invite ship</h3>
+      <p style="font-size:13px;color:var(--text-muted);line-height:1.5;margin-bottom:14px">
+        Pre-add a ship to <code style="font-family:var(--mono);background:var(--surface2);padding:1px 5px;border-radius:3px">${esc(nb.flag)}</code>. They'll be able to join even though it's private.
+      </p>
+      <input id="m-ship" type="text" placeholder="~sampel-palnet" autofocus />
+      <div class="modal-actions">
+        <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="inviteShip()">Invite</button>
+      </div>
+    `;
+    box.querySelector("#m-ship").addEventListener("keydown", e => { if (e.key==="Enter") inviteShip(); });
   } else if (type === "rename-folder") {
     if (!pendingFolderEdit) return;
     box.innerHTML = `
@@ -3867,6 +4124,29 @@ async function createNotebook() {
   document.getElementById("modal-backdrop").classList.remove("open");
   await pokeAction({ "create-notebook": title });
   setTimeout(() => loadNotebooks(), 300);
+}
+
+function openInviteModal() {
+  if (!activeNotebookId) return;
+  openModal("invite-ship");
+}
+
+async function inviteShip() {
+  const raw = document.getElementById("m-ship")?.value?.trim();
+  if (!raw || !activeNotebookId) return;
+  // Accept ~sampel or sampel; agent expects sampel (no leading sig).
+  const ship = raw.startsWith("~") ? raw : "~" + raw;
+  // Lightweight format check — the agent will reject malformed ships.
+  if (!/^~[a-z][a-z0-9-]*$/.test(ship)) {
+    alert(`"${raw}" doesn't look like a valid ship name (e.g. ~sampel-palnet).`);
+    return;
+  }
+  document.getElementById("modal-backdrop").classList.remove("open");
+  try {
+    await pokeAction({ "send-invite": { notebookId: activeNotebookId, ship } });
+  } catch (e) {
+    alert("Invite failed: " + (e?.message || "unknown error"));
+  }
 }
 
 function openRenameNotebook() {
@@ -4826,6 +5106,25 @@ function moveActionsForViewport() {
 moveActionsForViewport();
 window.addEventListener("resize", moveActionsForViewport);
 
+// Read embed-mode params from the URL once. Tlon (and other embedders) load
+// this UI inside an iframe with `?embed=1&notebook=~ship/name` to lock the UI
+// to a single notebook and hide the sidebar.
+const EMBED_PARAMS = (() => {
+  try {
+    const p = new URLSearchParams(window.location.search);
+    return {
+      embed: p.get("embed") === "1" || p.has("embed"),
+      notebookFlag: p.get("notebook") || null,
+    };
+  } catch (e) {
+    return { embed: false, notebookFlag: null };
+  }
+})();
+
+if (EMBED_PARAMS.embed) {
+  document.body.classList.add("embed-mode");
+}
+
 restoreSidebarCollapsed();
 restoreColumnWidths();
 setupResizers();
@@ -4836,8 +5135,11 @@ if (location.protocol !== "file:" && location.hostname) {
   document.getElementById("connect-panel").style.display = "none";
   document.getElementById("ship-url-input").value = location.origin;
   connect().catch(() => {
-    // Show connect panel if auto-connect fails
-    document.getElementById("connect-panel").style.display = "";
+    // Show connect panel if auto-connect fails — but in embed mode the host
+    // already injected the auth cookie, so a connect failure is unrecoverable.
+    if (!EMBED_PARAMS.embed) {
+      document.getElementById("connect-panel").style.display = "";
+    }
   });
 }
 

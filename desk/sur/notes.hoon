@@ -76,6 +76,11 @@
       [%rename-notebook notebook-id=@ud title=@t]
       [%delete-notebook notebook-id=@ud]
       [%set-visibility notebook-id=@ud =visibility]
+      [%invite notebook-id=@ud who=ship]
+      [%send-invite notebook-id=@ud who=ship]
+      [%notify-invite =flag title=@t]
+      [%accept-invite =flag]
+      [%decline-invite =flag]
       [%join notebook-id=@ud]
       [%leave notebook-id=@ud]
       [%join-remote =flag]
@@ -104,6 +109,11 @@
       [%rename-notebook notebook-id=@ud title=@t actor=ship]
       [%delete-notebook notebook-id=@ud actor=ship]
       [%set-visibility notebook-id=@ud =visibility actor=ship]
+      [%invite notebook-id=@ud who=ship actor=ship]
+      [%send-invite notebook-id=@ud who=ship actor=ship]
+      [%notify-invite =flag title=@t actor=ship]
+      [%accept-invite =flag actor=ship]
+      [%decline-invite =flag actor=ship]
       [%join notebook-id=@ud actor=ship]
       [%leave notebook-id=@ud actor=ship]
       [%join-remote =flag actor=ship]
@@ -143,6 +153,13 @@
       [%note-moved note-id=@ud notebook-id=@ud folder-id=@ud actor=ship]
       [%note-deleted note-id=@ud notebook-id=@ud actor=ship]
       [%note-updated =note actor=ship]
+      ::  These two are kept for binary compatibility with on-disk state
+      ::  written by an earlier v6 build that widened u-notes. They are no
+      ::  longer emitted at runtime (inbox events go out as raw JSON), and
+      ::  must keep their on-disk shape (no title) — title is only carried
+      ::  on the actually-emitted JSON, not in the dead u-notes variant.
+      [%invite-received =flag from=ship sent-at=@da]
+      [%invite-removed =flag]
   ==
 ::
 +$  r-notes
@@ -206,5 +223,28 @@
       visibilities=(map flag visibility)
   ==
 ::
-+$  state  state-4
+::  state-5: pending invites with shape [from sent-at] — kept for migration
++$  invite-info-5  [from=ship sent-at=@da]
++$  state-5
+  $:  %5
+      books=(map flag [=net =notebook-state])
+      next-id=@ud
+      published=(map [=flag note-id=@ud] @t)
+      visibilities=(map flag visibility)
+      invites=(map flag invite-info-5)
+  ==
+::
+::  state-6: invites carry the notebook title so the recipient sees a name,
+::  not just a numeric flag, before they accept.
++$  invite-info  [from=ship sent-at=@da title=@t]
++$  state-6
+  $:  %6
+      books=(map flag [=net =notebook-state])
+      next-id=@ud
+      published=(map [=flag note-id=@ud] @t)
+      visibilities=(map flag visibility)
+      invites=(map flag invite-info)
+  ==
+::
++$  state  state-6
 --
