@@ -212,8 +212,9 @@
     text-overflow: ellipsis;
     white-space: nowrap;
     padding-left: 22px;
+    pointer-events: none;
+    user-select: none;
   }
-  .nb-item .nb-flag:hover { text-decoration: underline; }
   .nb-item.active .nb-flag { color: rgba(255,255,255,0.6); }
 
   /* ── sidebar bottom actions ── */
@@ -1111,8 +1112,6 @@
       margin-top: 0;
       margin-bottom: 4px;
     }
-    /* On mobile the nb-flag is too small to hit reliably; route copy through the menu instead */
-    .nb-item .nb-flag { pointer-events: none; }
 
     /* Editor bottom footer on mobile — formatting shortcuts since the
        phone keyboard can't easily trigger ⌘B / ⌘I / ⌘K. */
@@ -1364,11 +1363,14 @@
           <div class="overflow-menu" id="notebook-settings-menu">
             <button id="nb-menu-rename" onclick="openRenameNotebook()">Rename notebook</button>
             <button id="nb-menu-visibility" onclick="toggleNotebookVisibility()">Make public</button>
+            <div class="menu-divider"></div>
             <button id="nb-menu-copy-flag" onclick="copyActiveFlag()">Copy notebook ID</button>
             <button id="nb-menu-copy-share" onclick="copyShareLink()">Copy share link</button>
+            <div class="menu-divider"></div>
             <button class="nb-menu-import" id="nb-menu-import-files" onclick="closeNotebookSettings(); triggerImport(false)">Import files</button>
             <button class="nb-menu-import" id="nb-menu-import-folder" onclick="closeNotebookSettings(); triggerImport(true)">Import folder</button>
             <button id="nb-menu-export" onclick="exportNotebook()">Export notebook</button>
+            <div class="menu-divider"></div>
             <button id="nb-menu-delete" class="danger" onclick="deleteNotebook()">Delete notebook</button>
             <button id="nb-menu-leave" class="danger" onclick="leaveRemoteNotebook()" style="display:none">Leave notebook</button>
           </div>
@@ -2140,16 +2142,8 @@ function renderNotebooks() {
     const div = document.createElement("div");
     div.className = "nb-item" + (nb.id === activeNotebookId ? " active" : "");
     const lockHtml = nb.visibility === "private" ? `<svg class="icon nb-lock"><use href="#i-lock"/></svg>` : "";
-    div.innerHTML = `<span class="nb-icon">${icon('notebook')}</span><span class="nb-name">${esc(nb.title)}</span>${lockHtml}<span class="nb-flag" title="Click to copy flag">${esc(nb.flag)}</span>`;
+    div.innerHTML = `<span class="nb-icon">${icon('notebook')}</span><span class="nb-name">${esc(nb.title)}</span>${lockHtml}<span class="nb-flag">${esc(nb.flag)}</span>`;
     div.onclick = () => selectNotebook(nb.id);
-    div.querySelector(".nb-flag").onclick = (e) => {
-      e.stopPropagation();
-      navigator.clipboard.writeText(nb.flag);
-      const el = e.target;
-      const orig = el.textContent;
-      el.textContent = "copied!";
-      setTimeout(() => el.textContent = orig, 1000);
-    };
     el.appendChild(div);
   });
 }
@@ -2670,7 +2664,7 @@ async function selectNotebook(id) {
   activeNotebookId = id;
   const nb = notebooks[id];
   activeNotebookFlag = nb ? nb.flag : null;
-  activeFolderId = null;  // loadFolders will set this to root folder id
+  activeFolderId = null;
   activeNoteId = null;
   if (changing) {
     // Restore from per-notebook caches (populated by prior visits or by the
@@ -2679,10 +2673,17 @@ async function selectNotebook(id) {
     folders = foldersByNb[id] ? { ...foldersByNb[id] } : {};
     notes = notesByNb[id] ? { ...notesByNb[id] } : {};
   }
+  // If we have cached folders, default to root and paint immediately. URL
+  // and rest of state stay correct without waiting on the scry.
+  const cachedRoot = Object.values(folders).find(f => f.name === "/");
+  if (cachedRoot) activeFolderId = cachedRoot.id;
   clearEditor();
   renderNotebooks();
-  // Folders and notes are independent; fetch in parallel.
-  await Promise.all([loadFolders(id), loadNotes(id)]);
+  renderItems();
+  // Fire fresh scries in parallel — they'll re-render when they land. We
+  // don't await so navigation feels instant; the cache (if any) is what
+  // the user sees in the meantime.
+  Promise.all([loadFolders(id), loadNotes(id)]).catch(() => {});
   subscribeEvents();
   saveSelection();
   pushRoute();
@@ -4080,7 +4081,7 @@ function openModal(type) {
     box.innerHTML = `
       <h3>Invite ship</h3>
       <p style="font-size:13px;color:var(--text-muted);line-height:1.5;margin-bottom:14px">
-        Pre-add a ship to <code style="font-family:var(--mono);background:var(--surface2);padding:1px 5px;border-radius:3px">${esc(nb.flag)}</code>. They'll be able to join even though it's private.
+        Send an invite to <strong style="color:var(--text)">${esc(nb.title || "Untitled")}</strong>. They'll see it in their pending invites and can accept to join.
       </p>
       <input id="m-ship" type="text" placeholder="~sampel-palnet" autofocus />
       <div class="modal-actions">
