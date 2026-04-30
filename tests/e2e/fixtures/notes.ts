@@ -111,6 +111,49 @@ export class NotesPage {
     }
   }
 
+  // ── Invites ─────────────────────────────────────────────────────────────
+  async sendInvite(toPatp: string) {
+    await this.page.locator("#notebook-invite-btn").click();
+    await this.page.locator("#m-ship").fill(toPatp);
+    await this.page.locator("#m-ship-submit:not([disabled])").click();
+  }
+
+  async acceptInvite(title: string) {
+    await this.page
+      .locator(`.invite-item:has-text('${title}') button[data-action="accept"]`)
+      .click();
+  }
+
+  async declineInvite(title: string) {
+    await this.page
+      .locator(`.invite-item:has-text('${title}') button[data-action="decline"]`)
+      .click();
+  }
+
+  // ── Leave a remote notebook ─────────────────────────────────────────────
+  async leaveNotebook() {
+    await this.openNotebookSettings();
+    this.page.once("dialog", (d) => d.accept());
+    await this.page.locator("#nb-menu-leave").click();
+  }
+
+  // ── Publish / unpublish ─────────────────────────────────────────────────
+  // publishNote opens a new tab via window.open; the caller can wait for
+  // the popup via context.waitForEvent("page") if it needs the URL.
+  async openOverflow() {
+    await this.page.locator("button[onclick='toggleOverflow()']").click();
+  }
+
+  async publishNote() {
+    await this.openOverflow();
+    await this.page.locator("#publish-btn").click();
+  }
+
+  async unpublishNote() {
+    await this.openOverflow();
+    await this.page.locator("#unpublish-btn").click();
+  }
+
   async toggleVisibility(): Promise<"public" | "private"> {
     await this.openNotebookSettings();
     const btn = this.page.locator("#nb-menu-visibility");
