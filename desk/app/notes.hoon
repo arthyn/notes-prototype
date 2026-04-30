@@ -78,7 +78,7 @@
 ::  helper core
 ::
 |_  [=bowl:gall cards=(list card)]
-++  dummy  'debug-dummy-back-v1'
+++  dummy  'notify-invite-as-command-v1'
 ++  abet  [(flop cards) state]
 ++  cor   .
 ++  emit  |=(=card cor(cards [card cards]))
@@ -409,6 +409,10 @@
     ==
   ::
       %notes-action
+    ::  Actions are local UI requests — they originate from our own ship.
+    ::  Cross-ship messages (host → invitee notify-invite, subscriber →
+    ::  host commands) flow via %notes-command instead.
+    ?>  =(our.bowl src.bowl)
     =/  act=action:notes  !<(action:notes vase)
     ::  top-level actions handled without notebook flag
     ?:  ?=(%create-notebook -.act)
@@ -421,8 +425,6 @@
       (handle-accept-invite flag.act)
     ?:  ?=(%decline-invite -.act)
       (handle-decline-invite flag.act)
-    ?:  ?=(%notify-invite -.act)
-      (handle-notify-invite flag.act title.act src.bowl)
     ::  all other actions are notebook-scoped: [%notebook =flag =a-notebook]
     ?>  ?=(%notebook -.act)
     =/  =flag:notes  flag.act
@@ -455,19 +457,23 @@
   ::
       %notes-command
     =/  cmd=command:notes  !<(command:notes vase)
-    ::  join-remote and leave-remote carry their own flag
-    ?:  ?=(%member-join -.c-notebook.cmd)
-      ?>  =(ship.flag.cmd our.bowl)
-      ?>  (~(has by books.state) flag.cmd)
-      se-abet:(se-poke:(se-abed:se-core flag.cmd) cmd)
-    ?:  ?=(%member-leave -.c-notebook.cmd)
-      ?>  =(ship.flag.cmd our.bowl)
-      ?>  (~(has by books.state) flag.cmd)
-      se-abet:(se-poke:(se-abed:se-core flag.cmd) cmd)
-    ::  commands always processed by server core
-    =/  =flag:notes  flag.cmd
-    ?>  (~(has by books.state) flag)
-    se-abet:(se-poke:(se-abed:se-core flag) cmd)
+    ?-    -.cmd
+        %notify-invite
+      ::  Cross-ship invite delivery — src.bowl validation lives in
+      ::  handle-notify-invite (must equal ship.flag, the inviting host).
+      (handle-notify-invite flag.cmd title.cmd src.bowl)
+    ::
+        %notebook
+      =/  =flag:notes  flag.cmd
+      =/  nb-cmd=c-notebook:notes  c-notebook.cmd
+      ::  member-join/-leave: any ship can request membership change on
+      ::  a notebook we host; se-member-join/-leave enforces visibility
+      ::  + role logic. All other commands assume the sender is already
+      ::  a member; se-poke arms re-check via se-can-edit/se-is-owner.
+      ?>  =(ship.flag our.bowl)
+      ?>  (~(has by books.state) flag)
+      se-abet:(se-poke:(se-abed:se-core flag) [flag nb-cmd])
+    ==
   ==
 ::
 ::  +a-notebook-to-c-notebook: convert a-notebook to c-notebook (same shape except %restore)
@@ -493,8 +499,8 @@
     [placeholder-nb ~ ~ ~]
   =.  books.state
     (~(put by books.state) flag [placeholder-net placeholder-nb-state])
-  ::  send %member-join command to host
-  =/  join-cmd=command:notes  [flag [%member-join ~]]
+  ::  send %member-join command to host (wrapped in c-notes %notebook arm)
+  =/  join-cmd=command:notes  [%notebook flag [%member-join ~]]
   =/  join-wire=path
     /notes/join/(scot %p ship.flag)/[name.flag]
   %-  emit
@@ -518,17 +524,16 @@
   =/  title=@t  title.notebook.notebook-state.entry
   ::  pre-add via se-core (also enforces ownership)
   =.  cor
-    =/  cmd=command:notes  [flag [%invite who]]
+    =/  cmd=c-cmd:notes  [flag [%invite who]]
     se-abet:(se-poke:(se-abed:se-core flag) cmd)
-  ::  poke the invitee's notes agent with a top-level %notify-invite. This
-  ::  is a distinct arm from the notebook-scoped [%invite who]: the invitee
-  ::  doesn't have this notebook in books yet, so a notebook-scoped action
-  ::  would crash dispatch. %notify-invite carries title so the inbox can
-  ::  render it pre-join.
-  =/  notify-act=action:notes  [%notify-invite flag title]
+  ::  Poke the invitee's notes agent with %notify-invite as a c-notes
+  ::  command — actions are local-only (src must equal our), so cross-
+  ::  ship invite delivery flows through the command surface. The arm
+  ::  carries the notebook title so the inbox can render it pre-join.
+  =/  notify-cmd=command:notes  [%notify-invite flag title]
   =/  =wire  /notes/invite/(scot %p who)/(scot %p ship.flag)/[name.flag]
   %-  emit
-  [%pass wire %agent [who %notes] %poke notes-action+!>(notify-act)]
+  [%pass wire %agent [who %notes] %poke notes-command+!>(notify-cmd)]
 ::
 ::  +handle-notify-invite: called when a remote host pokes us with
 ::  [%notify-invite flag title]. The sender must be the notebook host.
@@ -973,7 +978,7 @@
   ::
   ::  +se-poke: dispatch a c-notes command to the right handler
   ++  se-poke
-    |=  cmd=command:notes
+    |=  cmd=c-cmd:notes
     ^+  se-core
     ?-  -.c-notebook.cmd
         %rename            (se-rename-notebook cmd)
@@ -991,7 +996,7 @@
     ==
   ::
   ++  se-rename-notebook
-    |=  cmd=command:notes
+    |=  cmd=c-cmd:notes
     ?>  ?=(%rename -.c-notebook.cmd)
     ^+  se-core
     ?>  (se-is-owner src.bowl)
@@ -1001,7 +1006,7 @@
     (se-update [%updated nb])
   ::
   ++  se-delete-notebook
-    |=  cmd=command:notes
+    |=  cmd=c-cmd:notes
     ?>  ?=(%delete -.c-notebook.cmd)
     ^+  se-core
     ?>  (se-is-owner src.bowl)
@@ -1023,7 +1028,7 @@
     se-core(gone &)
   ::
   ++  se-set-visibility
-    |=  cmd=command:notes
+    |=  cmd=c-cmd:notes
     ?>  ?=(%visibility -.c-notebook.cmd)
     ^+  se-core
     ?>  (se-is-owner src.bowl)
@@ -1032,7 +1037,7 @@
     (se-update [%visibility visibility.c-notebook.cmd])
   ::
   ++  se-invite
-    |=  cmd=command:notes
+    |=  cmd=c-cmd:notes
     ?>  ?=(%invite -.c-notebook.cmd)
     ^+  se-core
     ?>  (se-is-owner src.bowl)
@@ -1044,7 +1049,7 @@
     (se-update [%member-joined who %editor])
   ::
   ++  se-member-join
-    |=  cmd=command:notes
+    |=  cmd=c-cmd:notes
     ?>  ?=(%member-join -.c-notebook.cmd)
     ^+  se-core
     ::  private notebooks reject joins from non-members
@@ -1058,7 +1063,7 @@
     (se-update [%member-joined src.bowl %editor])
   ::
   ++  se-member-leave
-    |=  cmd=command:notes
+    |=  cmd=c-cmd:notes
     ?>  ?=(%member-leave -.c-notebook.cmd)
     ^+  se-core
     =/  new-mbrs=notebook-members:notes
@@ -1067,7 +1072,7 @@
     (se-update [%member-left src.bowl])
   ::
   ++  se-dispatch-folder
-    |=  cmd=command:notes
+    |=  cmd=c-cmd:notes
     ?>  ?=(%folder -.c-notebook.cmd)
     ^+  se-core
     =/  fid=@ud  id.c-notebook.cmd
@@ -1079,7 +1084,7 @@
     ==
   ::
   ++  se-dispatch-note
-    |=  cmd=command:notes
+    |=  cmd=c-cmd:notes
     ?>  ?=(%note -.c-notebook.cmd)
     ^+  se-core
     =/  n-act=a-note:notes  a-note.c-notebook.cmd
@@ -1094,7 +1099,7 @@
     ==
   ::
   ++  se-create-folder
-    |=  cmd=command:notes
+    |=  cmd=c-cmd:notes
     ?>  ?=(%create-folder -.c-notebook.cmd)
     ^+  se-core
     ?>  (se-can-edit src.bowl)
@@ -1109,7 +1114,7 @@
     (se-update [%folder fid [%created nf]])
   ::
   ++  se-rename-folder
-    |=  cmd=command:notes
+    |=  cmd=c-cmd:notes
     ?>  ?=(%folder -.c-notebook.cmd)
     ?>  ?=(%rename -.a-folder.c-notebook.cmd)
     ^+  se-core
@@ -1123,7 +1128,7 @@
     (se-update [%folder fid [%updated fld]])
   ::
   ++  se-move-folder
-    |=  cmd=command:notes
+    |=  cmd=c-cmd:notes
     ?>  ?=(%folder -.c-notebook.cmd)
     ?>  ?=(%move -.a-folder.c-notebook.cmd)
     ^+  se-core
@@ -1141,7 +1146,7 @@
     (se-update [%folder fid [%updated fld]])
   ::
   ++  se-delete-folder
-    |=  cmd=command:notes
+    |=  cmd=c-cmd:notes
     ?>  ?=(%folder -.c-notebook.cmd)
     ?>  ?=(%delete -.a-folder.c-notebook.cmd)
     ^+  se-core
@@ -1177,7 +1182,7 @@
     (se-update [%folder fid [%deleted ~]])
   ::
   ++  se-create-note
-    |=  cmd=command:notes
+    |=  cmd=c-cmd:notes
     ?>  ?=(%create-note -.c-notebook.cmd)
     ^+  se-core
     ?>  (se-can-edit src.bowl)
@@ -1205,7 +1210,7 @@
     (se-update [%note nid [%created nt]])
   ::
   ++  se-rename-note
-    |=  cmd=command:notes
+    |=  cmd=c-cmd:notes
     ?>  ?=(%note -.c-notebook.cmd)
     ?>  ?=(%rename -.a-note.c-notebook.cmd)
     ^+  se-core
@@ -1228,7 +1233,7 @@
     (se-update [%note nid [%updated nt]])
   ::
   ++  se-move-note
-    |=  cmd=command:notes
+    |=  cmd=c-cmd:notes
     ?>  ?=(%note -.c-notebook.cmd)
     ?>  ?=(%move -.a-note.c-notebook.cmd)
     ^+  se-core
@@ -1249,7 +1254,7 @@
     (se-update [%note nid [%updated nt]])
   ::
   ++  se-delete-note
-    |=  cmd=command:notes
+    |=  cmd=c-cmd:notes
     ?>  ?=(%note -.c-notebook.cmd)
     ?>  ?=(%delete -.a-note.c-notebook.cmd)
     ^+  se-core
@@ -1262,7 +1267,7 @@
     (se-update [%note nid [%deleted ~]])
   ::
   ++  se-update-note
-    |=  cmd=command:notes
+    |=  cmd=c-cmd:notes
     ?>  ?=(%note -.c-notebook.cmd)
     ?>  ?=(%update -.a-note.c-notebook.cmd)
     ^+  se-core
@@ -1306,7 +1311,7 @@
   ::  +se-restore-note: revert to a prior archived revision
   ::  This is simply an update with the archived body, respecting current revision.
   ++  se-restore-note
-    |=  cmd=command:notes
+    |=  cmd=c-cmd:notes
     ?>  ?=(%note -.c-notebook.cmd)
     ?>  ?=(%restore -.a-note.c-notebook.cmd)
     ^+  se-core
@@ -1327,12 +1332,12 @@
       $(revs t.revs)
     ?>  ?=(^ found)
     ::  apply as a normal update with current revision as expected
-    =/  new-cmd=command:notes
+    =/  new-cmd=c-cmd:notes
       [flag [%note nid [%update body-md.u.found revision.nt]]]
     (se-update-note new-cmd)
   ::
   ++  se-batch-import
-    |=  cmd=command:notes
+    |=  cmd=c-cmd:notes
     ?>  ?=(%batch-import -.c-notebook.cmd)
     ^+  se-core
     ?>  (se-can-edit src.bowl)
@@ -1362,7 +1367,7 @@
     $(items t.items, se-core se-core)
   ::
   ++  se-batch-import-tree
-    |=  cmd=command:notes
+    |=  cmd=c-cmd:notes
     ?>  ?=(%batch-import-tree -.c-notebook.cmd)
     ^+  se-core
     ?>  (se-can-edit src.bowl)
@@ -1492,7 +1497,8 @@
     |=  act=action:notes
     ^+  no-core
     ?>  ?=(%notebook -.act)
-    =/  cmd=command:notes  [flag.act (a-notebook-to-c-notebook a-notebook.act)]
+    =/  cmd=command:notes
+      [%notebook flag.act (a-notebook-to-c-notebook a-notebook.act)]
     %-  emit
     :*  %pass
         no-sub-wire

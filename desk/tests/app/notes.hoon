@@ -207,7 +207,7 @@
   ;<  *  b  (poke-a [%notebook f [%visibility %public]])
   ;<  *  b  (set-src ~bus)
   ;<  caz=(list card)  b
-    (do-poke %notes-command !>(`command:notes`[f [%member-join ~]]))
+    (do-poke %notes-command !>(`command:notes`[%notebook f [%member-join ~]]))
   ;<  ~  b  (ex-cards-ne caz)
   ;<  *  b  (set-src our.bowl)
   ;<  mbrs=cage  b  (peek-mbrs f)
@@ -225,7 +225,7 @@
   ;<  *  b  (poke-a [%create-notebook 'Private NB'])
   =/  f=flag:notes  (nb-flag our.bowl 1)
   ;<  *  b  (set-src ~bus)
-  (ex-fail (do-poke %notes-command !>(`command:notes`[f [%member-join ~]])))
+  (ex-fail (do-poke %notes-command !>(`command:notes`[%notebook f [%member-join ~]])))
 ::
 ::  ====  test-create-folder-at-root  ====
 ++  test-create-folder-at-root
@@ -998,22 +998,11 @@
   =/  expected=action:notes  [%accept-invite [~bus 'shared']]
   (ex-equal !>(parsed) !>(expected))
 ::
-::  ====  test-json-decode-notify-invite  ====
-::  Cross-ship hop: host pokes invitee with [%notify-invite flag title].
-++  test-json-decode-notify-invite
-  %-  eval-mare
-  =/  m  (mare ,~)
-  ^-  form:m
-  =/  jon=json
-    %-  mk-obj
-    :~  ['type' [%s 'notify-invite']]
-        ['ship' [%s '~zod']]
-        ['name' [%s 'shared']]
-        ['title' [%s 'Notebook Title']]
-    ==
-  =/  parsed=action:notes  (action:dejs:notes-json jon)
-  =/  expected=action:notes  [%notify-invite [~zod 'shared'] 'Notebook Title']
-  (ex-equal !>(parsed) !>(expected))
+::  Note: %notify-invite moved from a-notes to c-notes (it's a cross-ship
+::  message, not a local UI action). Commands aren't JSON-decoded —
+::  they're noun-encoded between agents — so there's no test-agent
+::  decode test for notify-invite here. The cross-ship-invite Playwright
+::  spec exercises the round-trip end-to-end.
 ::
 ::  ====  test-json-decode-notebook-rename  ====
 ++  test-json-decode-notebook-rename

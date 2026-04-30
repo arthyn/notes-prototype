@@ -91,10 +91,6 @@
       [%leave =flag]
       [%accept-invite =flag]
       [%decline-invite =flag]
-      ::  $notify-invite: cross-ship hop fired by the host's %notes onto the
-      ::  invitee's %notes. Carries title so the invitee's inbox can render it
-      ::  before they've actually joined the notebook.
-      [%notify-invite =flag title=@t]
       [%notebook =flag =a-notebook]
   ==
 ::
@@ -137,12 +133,23 @@
 ::  Commands (poke surface — actor authenticated via src.bowl)
 ::  ============================================================
 ::
-::  $c-notes: top-level command — always [=flag =c-notebook].
-::  %create-notebook is handled separately (not a c-notes).
-::  %join/%leave/%accept-invite/%decline-invite are top-level and handled
-::  in the poke arm before c-notes dispatch.
+::  $c-notes: tagged union of cross-ship messages.
+::  %notify-invite — host pokes invitee with a pending invite (carries title
+::    for inbox rendering pre-join). src.bowl must equal the host of `flag`.
+::  %notebook — subscriber forwards a notebook-scoped command to the host.
+::    src.bowl is the actor; permission checks happen in se-core.
 ::
-+$  c-notes  [=flag =c-notebook]
++$  c-notes
+  $%  [%notify-invite =flag title=@t]
+      [%notebook =flag =c-notebook]
+  ==
+::
+::  $c-cmd: internal shape used by se-poke and the per-arm handlers.
+::  Conceptually `command for a specific notebook` — the flag carries
+::  routing context, c-notebook carries the verb. Not a wire type;
+::  c-notes %notebook arm peels into this on the way in.
+::
++$  c-cmd  [=flag =c-notebook]
 ::
 ::  $c-notebook: notebook-scoped commands. Mirrors a-notebook minus
 ::  client-only verbs (%restore is purely client-side restatement of %update).
