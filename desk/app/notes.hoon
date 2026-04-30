@@ -472,10 +472,7 @@
     =/  url=@t  url.request.inbound-request.req
     =/  url-tape=tape  (trip url)
     ::  drop any query string for path-only matching
-    =/  url-path=tape
-      =/  qi=(unit @ud)  (find "?" url-tape)
-      ?~  qi  url-tape
-      (scag u.qi url-tape)
+    =/  url-path=tape  (strip-query url-tape)
     ::  PWA-related static assets: manifest, service worker, icon.
     ::  Each returns [body content-type] or ~. Served scoped under
     ::  /notes/ so the SW can control the app's URL space.
@@ -497,10 +494,7 @@
       ?.  =("/notes/pub/" (scag 11 url-tape))  ~
       =/  rest=tape  (slag 11 url-tape)
       ::  drop any query string
-      =/  path-only=tape
-        =/  qi=(unit @ud)  (find "?" rest)
-        ?~  qi  rest
-        (scag u.qi rest)
+      =/  path-only=tape  (strip-query rest)
       ::  parse /~ship/name/note-id via stab
       =/  pax=path  (stab (crip (weld "/" path-only)))
       ?.  ?=([@ @ @ ~] pax)  ~
@@ -515,10 +509,7 @@
     =/  share-html=(unit @t)
       ?.  =("/notes/share/" (scag 13 url-tape))  ~
       =/  rest=tape  (slag 13 url-tape)
-      =/  path-only=tape
-        =/  qi=(unit @ud)  (find "?" rest)
-        ?~  qi  rest
-        (scag u.qi rest)
+      =/  path-only=tape  (strip-query rest)
       =/  pax=path  (stab (crip (weld "/" path-only)))
       ?.  ?=([@ @ ~] pax)  ~
       ?~  (slaw %p i.pax)  ~
@@ -548,7 +539,7 @@
     ::  Cross-ship messages (host → invitee notify-invite, subscriber →
     ::  host commands) flow via %notes-command instead.
     ?>  =(our.bowl src.bowl)
-    =/  act=action:notes  !<(action:notes vase)
+    =+  !<(act=action:notes vase)
     ::  top-level actions handled without notebook flag
     ?:  ?=(%create-notebook -.act)
       se-abet:(se-create-notebook:(se-init:se-core act) act)
@@ -591,7 +582,7 @@
     no-abet:(no-action:(no-abed:no-core flag) act)
   ::
       %notes-command
-    =/  cmd=command:notes  !<(command:notes vase)
+    =+  !<(cmd=command:notes vase)
     ?-    -.cmd
         %notify-invite
       ::  Cross-ship invite delivery — src.bowl validation lives in
@@ -600,14 +591,13 @@
     ::
         %notebook
       =/  =flag:notes  flag.cmd
-      =/  nb-cmd=c-notebook:notes  c-notebook.cmd
       ::  member-join/-leave: any ship can request membership change on
       ::  a notebook we host; se-member-join/-leave enforces visibility
       ::  + role logic. All other commands assume the sender is already
       ::  a member; se-poke arms re-check via se-can-edit/se-is-owner.
       ?>  =(ship.flag our.bowl)
       ?>  (~(has by books.state) flag)
-      se-abet:(se-poke:(se-abed:se-core flag) [flag nb-cmd])
+      se-abet:(se-poke:(se-abed:se-core flag) [flag c-notebook.cmd])
     ==
   ==
 ::
@@ -635,11 +625,10 @@
   =.  books.state
     (~(put by books.state) flag [placeholder-net placeholder-nb-state])
   ::  send %member-join command to host (wrapped in c-notes %notebook arm)
-  =/  join-cmd=command:notes  [%notebook flag [%member-join ~]]
-  =/  join-wire=path
-    /notes/join/(scot %p ship.flag)/[name.flag]
   %-  emit
-  [%pass join-wire %agent [ship.flag %notes] %poke notes-command+!>(join-cmd)]
+  :+  %pass
+    /notes/join/(scot %p ship.flag)/[name.flag]
+  [%agent [ship.flag %notes] %poke notes-command+!>(`command:notes`[%notebook flag [%member-join ~]])]
 ::
 ::  +leave-remote: leave a notebook on a remote ship
 ++  leave-remote
@@ -665,10 +654,10 @@
   ::  command — actions are local-only (src must equal our), so cross-
   ::  ship invite delivery flows through the command surface. The arm
   ::  carries the notebook title so the inbox can render it pre-join.
-  =/  notify-cmd=command:notes  [%notify-invite flag title]
-  =/  =wire  /notes/invite/(scot %p who)/(scot %p ship.flag)/[name.flag]
   %-  emit
-  [%pass wire %agent [who %notes] %poke notes-command+!>(notify-cmd)]
+  :+  %pass
+    /notes/invite/(scot %p who)/(scot %p ship.flag)/[name.flag]
+  [%agent [who %notes] %poke notes-command+!>(`command:notes`[%notify-invite flag title])]
 ::
 ::  +handle-notify-invite: called when a remote host pokes us with
 ::  [%notify-invite flag title]. The sender must be the notebook host.
@@ -715,10 +704,8 @@
         ['sentAt' (numb:enjs:format (div (sub sent-at ~1970.1.1) ~s1))]
         ['title' s+title]
     ==
-  =/  jon=json
-    %-  pairs:enjs:format  :~  ['type' s+'update']  ['update' evt]  ==
   %-  give
-  [%fact [/v0/inbox/stream]~ json+!>(jon)]
+  [%fact [/v0/inbox/stream]~ json+!>((pairs:enjs:format ~[['type' s+'update'] ['update' evt]]))]
 ::
 ::  +give-inbox-removed: emit an invite-removed event on /v0/inbox/stream
 ++  give-inbox-removed
@@ -730,21 +717,15 @@
         ['host' s+(scot %p ship.flag)]
         ['flagName' s+name.flag]
     ==
-  =/  jon=json
-    %-  pairs:enjs:format  :~  ['type' s+'update']  ['update' evt]  ==
   %-  give
-  [%fact [/v0/inbox/stream]~ json+!>(jon)]
+  [%fact [/v0/inbox/stream]~ json+!>((pairs:enjs:format ~[['type' s+'update'] ['update' evt]]))]
 ::
 ::  +notebooks-changed-card: a fact telling subscribed UIs to re-scry notebooks
 ++  notebooks-changed-card
   ^-  card
   =/  evt=json
-    %-  pairs:enjs:format  :~  ['type' s+'notebooks-changed']  ==
-  =/  jon=json
-    %-  pairs:enjs:format
-    :~  ['type' s+'update']  ['update' evt]
-    ==
-  [%give %fact [/v0/inbox/stream]~ json+!>(jon)]
+    (pairs:enjs:format ~[['type' s+'notebooks-changed']])
+  [%give %fact [/v0/inbox/stream]~ json+!>((pairs:enjs:format ~[['type' s+'update'] ['update' evt]]))]
 ::
 ++  watch
   |=  =(pole knot)
@@ -755,12 +736,9 @@
   ::
       [%v0 %notes ship=@ name=@ %updates ~]
     ::  subscriber watching our notebook's update stream
-    =/  =ship  (slav %p ship.pole)
-    =/  name=@tas  name.pole
-    =/  =flag:notes  [ship name]
-    ?>  =(our.bowl ship)
-    =/  entry=(unit [=net:notes =notebook-state:notes])
-      (~(get by books.state) flag)
+    =/  =flag:notes  [(slav %p ship.pole) `@tas`name.pole]
+    ?>  =(our.bowl ship.flag)
+    =/  entry  (get-book flag)
     ?~  entry  ~|(notebook-not-found+flag !!)
     ?>  ?=(%pub -.net.u.entry)
     ?>  (se-can-view:(se-abed:se-core flag) src.bowl)
@@ -769,18 +747,14 @@
   ::
       [%v0 %notes ship=@ name=@ %stream ~]
     ::  local UI subscription
-    =/  =ship  (slav %p ship.pole)
-    =/  name=@tas  name.pole
-    =/  =flag:notes  [ship name]
-    =/  entry=(unit [=net:notes =notebook-state:notes])
-      (~(get by books.state) flag)
+    =/  =flag:notes  [(slav %p ship.pole) `@tas`name.pole]
+    =/  entry  (get-book flag)
     ?~  entry  ~|(notebook-not-found+flag !!)
     ?>  (can-view-flag flag src.bowl)
     ::  send initial snapshot carrying visibility from notebook-state
-    =/  vis=visibility:notes  visibility.notebook-state.u.entry
-    =/  snap=response:notes  [%snapshot flag vis notebook-state.u.entry]
     %-  give
-    [%fact [`path`pole]~ notes-response+!>(snap)]
+    :+  %fact  [`path`pole]~
+    notes-response+!>(`response:notes`[%snapshot flag visibility.notebook-state.u.entry notebook-state.u.entry])
   ::
       [%v0 %inbox %stream ~]
     ?>  =(src.bowl our.bowl)
@@ -810,8 +784,7 @@
     ::  /x/v0/notebook/<ship>/<name>
       [%x %v0 %notebook ship=@ name=@ ~]
     =/  =flag:notes  [(slav %p ship.pole) `@tas`name.pole]
-    =/  entry=(unit [=net:notes =notebook-state:notes])
-      (~(get by books.state) flag)
+    =/  entry  (get-book flag)
     ?~  entry  ``json+!>(~)
     ?>  (can-view-flag flag src.bowl)
     =-  ``json+!>((pairs:enjs:format -))
@@ -822,8 +795,7 @@
     ::  /x/v0/folders/<ship>/<name>
       [%x %v0 %folders ship=@ name=@ ~]
     =/  =flag:notes  [(slav %p ship.pole) `@tas`name.pole]
-    =/  entry=(unit [=net:notes =notebook-state:notes])
-      (~(get by books.state) flag)
+    =/  entry  (get-book flag)
     ?~  entry  ``json+!>(~)
     ?>  (can-view-flag flag src.bowl)
     =/  flds=(list json)
@@ -833,8 +805,7 @@
     ::  /x/v0/notes/<ship>/<name>
       [%x %v0 %notes ship=@ name=@ ~]
     =/  =flag:notes  [(slav %p ship.pole) `@tas`name.pole]
-    =/  entry=(unit [=net:notes =notebook-state:notes])
-      (~(get by books.state) flag)
+    =/  entry  (get-book flag)
     ?~  entry  ``json+!>(~)
     ?>  (can-view-flag flag src.bowl)
     =/  nts=(list json)
@@ -844,8 +815,7 @@
     ::  /x/v0/note/<ship>/<name>/<id> — single note by ID
       [%x %v0 %note ship=@ name=@ id=@ ~]
     =/  =flag:notes  [(slav %p ship.pole) `@tas`name.pole]
-    =/  entry=(unit [=net:notes =notebook-state:notes])
-      (~(get by books.state) flag)
+    =/  entry  (get-book flag)
     ?~  entry  ``json+!>(~)
     ?>  (can-view-flag flag src.bowl)
     =/  nid=@ud  (slav %ud id.pole)
@@ -856,8 +826,7 @@
     ::  /x/v0/note-history/<ship>/<name>/<id> — revision history for a note
       [%x %v0 %note-history ship=@ name=@ id=@ ~]
     =/  =flag:notes  [(slav %p ship.pole) `@tas`name.pole]
-    =/  entry=(unit [=net:notes =notebook-state:notes])
-      (~(get by books.state) flag)
+    =/  entry  (get-book flag)
     ?~  entry  ``json+!>(~)
     ?>  (can-view-flag flag src.bowl)
     =/  nid=@ud  (slav %ud id.pole)
@@ -870,8 +839,7 @@
     ::  /x/v0/folder/<ship>/<name>/<id> — single folder by ID
       [%x %v0 %folder ship=@ name=@ id=@ ~]
     =/  =flag:notes  [(slav %p ship.pole) `@tas`name.pole]
-    =/  entry=(unit [=net:notes =notebook-state:notes])
-      (~(get by books.state) flag)
+    =/  entry  (get-book flag)
     ?~  entry  ``json+!>(~)
     ?>  (can-view-flag flag src.bowl)
     =/  fid=@ud  (slav %ud id.pole)
@@ -882,8 +850,7 @@
     ::  /x/v0/members/<ship>/<name>
       [%x %v0 %members ship=@ name=@ ~]
     =/  =flag:notes  [(slav %p ship.pole) `@tas`name.pole]
-    =/  entry=(unit [=net:notes =notebook-state:notes])
-      (~(get by books.state) flag)
+    =/  entry  (get-book flag)
     ?~  entry  ``json+!>(~)
     ?>  (can-view-flag flag src.bowl)
     =/  mlist=(list json)
@@ -964,13 +931,26 @@
 ++  can-view-flag
   |=  [=flag:notes who=ship]
   ^-  ?
-  =/  entry=(unit [=net:notes =notebook-state:notes])
-    (~(get by books.state) flag)
+  =/  entry  (get-book flag)
   ?~  entry  |
   =/  mbrs=members:notes
     members.notebook-state.u.entry
   ?~  (~(get by mbrs) who)  |
   &
+::
+::  +get-book: lookup a notebook entry by flag
+++  get-book
+  |=  =flag:notes
+  ^-  (unit [=net:notes =notebook-state:notes])
+  (~(get by books.state) flag)
+::
+::  +strip-query: drop any query string from a URL tape (returns path portion only)
+++  strip-query
+  |=  url=tape
+  ^-  tape
+  =/  qi=(unit @ud)  (find "?" url)
+  ?~  qi  url
+  (scag u.qi url)
 ::
 ::  +find-flag-by-nid: find the flag for a notebook by numeric notebook id
 ++  find-flag-by-nid
@@ -1039,21 +1019,16 @@
       ?~  existing  now.bowl
       $(now.bowl `@da`(add now.bowl ^~((div ~s1 (bex 16)))))
     =.  log  (put:log-on:notes log [ts upd])
-    =/  =update:notes  [ts upd]
-    =/  =response:notes  [%update flag update]
-    =/  stream-path=path  (weld se-area /stream)
-    =/  paths=(list path)  ~[se-sub-path stream-path]
     %-  give
-    [%fact paths notes-response+!>(response)]
+    :+  %fact  ~[se-sub-path (weld se-area /stream)]
+    notes-response+!>(`response:notes`[%update flag [ts upd]])
   ::
   ::  +se-watch-sub: send initial snapshot to a new subscriber (with visibility)
   ++  se-watch-sub
     |=  who=ship
     ^+  se-core
-    =/  vis=visibility:notes  visibility.notebook-state
-    =/  snap=response:notes  [%snapshot flag vis notebook-state]
     %-  give
-    [%fact ~ notes-response+!>(snap)]
+    [%fact ~ notes-response+!>(`response:notes`[%snapshot flag visibility.notebook-state notebook-state])]
   ::
   ++  se-can-view
     |=  who=ship
@@ -1094,21 +1069,20 @@
     =/  rfid=@ud  +(nid)
     =/  nb=notebook:notes
       [nid title.act our.bowl now.bowl now.bowl our.bowl]
-    =/  rf=folder:notes
-      [rfid nid '/' ~ our.bowl now.bowl now.bowl our.bowl]
-    =/  mbrs=members:notes
-      (~(put by *members:notes) our.bowl %owner)
     =/  nb-state=notebook-state:notes
-      [nb mbrs %private ~ ~ ~]
-    =.  nb-state
-      nb-state(folders (~(put by folders.nb-state) rfid rf))
+      :*  nb
+          (~(put by *members:notes) our.bowl %owner)
+          %private
+          (~(put by *(map @ud folder:notes)) rfid [rfid nid '/' ~ our.bowl now.bowl now.bowl our.bowl])
+          ~
+          ~
+      ==
     =.  next-id.state  rfid
     =.  notebook-state  nb-state
     =.  books.state
       (~(put by books.state) flag [[%pub *log:notes] notebook-state])
     =.  se-core  (emit notebooks-changed-card)
-    =/  vis=visibility:notes  %private
-    (se-update [%created nb vis])
+    (se-update [%created nb %private])
   ::
   ::  +se-poke: dispatch a c-notes command to the right handler
   ++  se-poke
@@ -1183,18 +1157,16 @@
             !(se-can-view src.bowl)
         ==
       ~|(notebook-private+flag !!)
-    =/  new-mbrs=members:notes
+    =.  members.notebook-state
       (~(put by members.notebook-state) src.bowl %editor)
-    =.  members.notebook-state  new-mbrs
     (se-update [%member-joined src.bowl %editor])
   ::
   ++  se-member-leave
     |=  cmd=c-cmd:notes
     ?>  ?=(%member-leave -.c-notebook.cmd)
     ^+  se-core
-    =/  new-mbrs=members:notes
+    =.  members.notebook-state
       (~(del by members.notebook-state) src.bowl)
-    =.  members.notebook-state  new-mbrs
     (se-update [%member-left src.bowl])
   ::
   ++  se-dispatch-folder
@@ -1456,9 +1428,7 @@
       $(revs t.revs)
     ?>  ?=(^ found)
     ::  apply as a normal update with current revision as expected
-    =/  new-cmd=c-cmd:notes
-      [flag [%note nid [%update body-md.u.found revision.nt]]]
-    (se-update-note new-cmd)
+    (se-update-note `c-cmd:notes`[flag [%note nid [%update body-md.u.found revision.nt]]])
   ::
   ++  se-batch-import
     |=  cmd=c-cmd:notes
