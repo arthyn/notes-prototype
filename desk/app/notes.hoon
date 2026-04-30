@@ -498,10 +498,8 @@
       ::  parse /~ship/name/note-id via stab
       =/  pax=path  (stab (crip (weld "/" path-only)))
       ?.  ?=([@ @ @ ~] pax)  ~
-      =/  ship-u=(unit @p)   (slaw %p i.pax)
-      =/  nid-u=(unit @ud)   (slaw %ud i.t.t.pax)
-      ?~  ship-u  ~
-      ?~  nid-u   ~
+      ?~  ship-u=(slaw %p i.pax)  ~
+      ?~  nid-u=(slaw %ud i.t.t.pax)  ~
       ?:  =(0 u.nid-u)  ~
       =/  =flag:notes  [u.ship-u `@tas`i.t.pax]
       (~(get by published.state) [flag u.nid-u])
@@ -738,8 +736,7 @@
     ::  subscriber watching our notebook's update stream
     =/  =flag:notes  [(slav %p ship.pole) `@tas`name.pole]
     ?>  =(our.bowl ship.flag)
-    =/  entry  (get-book flag)
-    ?~  entry  ~|(notebook-not-found+flag !!)
+    ?~  entry=(get-book flag)  ~|(notebook-not-found+flag !!)
     ?>  ?=(%pub -.net.u.entry)
     ?>  (se-can-view:(se-abed:se-core flag) src.bowl)
     ::  send initial snapshot (with visibility so subscriber can seed it)
@@ -748,8 +745,7 @@
       [%v0 %notes ship=@ name=@ %stream ~]
     ::  local UI subscription
     =/  =flag:notes  [(slav %p ship.pole) `@tas`name.pole]
-    =/  entry  (get-book flag)
-    ?~  entry  ~|(notebook-not-found+flag !!)
+    ?~  entry=(get-book flag)  ~|(notebook-not-found+flag !!)
     ?>  (can-view-flag flag src.bowl)
     ::  send initial snapshot carrying visibility from notebook-state
     %-  give
@@ -784,8 +780,7 @@
     ::  /x/v0/notebook/<ship>/<name>
       [%x %v0 %notebook ship=@ name=@ ~]
     =/  =flag:notes  [(slav %p ship.pole) `@tas`name.pole]
-    =/  entry  (get-book flag)
-    ?~  entry  ``json+!>(~)
+    ?~  entry=(get-book flag)  ``json+!>(~)
     ?>  (can-view-flag flag src.bowl)
     =-  ``json+!>((pairs:enjs:format -))
     :~  ['host' s+(scot %p ship.flag)]
@@ -795,8 +790,7 @@
     ::  /x/v0/folders/<ship>/<name>
       [%x %v0 %folders ship=@ name=@ ~]
     =/  =flag:notes  [(slav %p ship.pole) `@tas`name.pole]
-    =/  entry  (get-book flag)
-    ?~  entry  ``json+!>(~)
+    ?~  entry=(get-book flag)  ``json+!>(~)
     ?>  (can-view-flag flag src.bowl)
     =/  flds=(list json)
       %+  turn  ~(val by folders.notebook-state.u.entry)
@@ -805,8 +799,7 @@
     ::  /x/v0/notes/<ship>/<name>
       [%x %v0 %notes ship=@ name=@ ~]
     =/  =flag:notes  [(slav %p ship.pole) `@tas`name.pole]
-    =/  entry  (get-book flag)
-    ?~  entry  ``json+!>(~)
+    ?~  entry=(get-book flag)  ``json+!>(~)
     ?>  (can-view-flag flag src.bowl)
     =/  nts=(list json)
       %+  turn  ~(val by notes.notebook-state.u.entry)
@@ -815,19 +808,16 @@
     ::  /x/v0/note/<ship>/<name>/<id> — single note by ID
       [%x %v0 %note ship=@ name=@ id=@ ~]
     =/  =flag:notes  [(slav %p ship.pole) `@tas`name.pole]
-    =/  entry  (get-book flag)
-    ?~  entry  ``json+!>(~)
+    ?~  entry=(get-book flag)  ``json+!>(~)
     ?>  (can-view-flag flag src.bowl)
     =/  nid=@ud  (slav %ud id.pole)
-    =/  nt=(unit note:notes)
-      (~(get by notes.notebook-state.u.entry) nid)
-    ?~  nt  ``json+!>(~)
+    ?~  nt=(~(get by notes.notebook-state.u.entry) nid)
+      ``json+!>(~)
     ``json+!>((note:enjs:notes-json u.nt))
     ::  /x/v0/note-history/<ship>/<name>/<id> — revision history for a note
       [%x %v0 %note-history ship=@ name=@ id=@ ~]
     =/  =flag:notes  [(slav %p ship.pole) `@tas`name.pole]
-    =/  entry  (get-book flag)
-    ?~  entry  ``json+!>(~)
+    ?~  entry=(get-book flag)  ``json+!>(~)
     ?>  (can-view-flag flag src.bowl)
     =/  nid=@ud  (slav %ud id.pole)
     =/  revs=(list note-revision:notes)
@@ -839,19 +829,16 @@
     ::  /x/v0/folder/<ship>/<name>/<id> — single folder by ID
       [%x %v0 %folder ship=@ name=@ id=@ ~]
     =/  =flag:notes  [(slav %p ship.pole) `@tas`name.pole]
-    =/  entry  (get-book flag)
-    ?~  entry  ``json+!>(~)
+    ?~  entry=(get-book flag)  ``json+!>(~)
     ?>  (can-view-flag flag src.bowl)
     =/  fid=@ud  (slav %ud id.pole)
-    =/  fld=(unit folder:notes)
-      (~(get by folders.notebook-state.u.entry) fid)
-    ?~  fld  ``json+!>(~)
+    ?~  fld=(~(get by folders.notebook-state.u.entry) fid)
+      ``json+!>(~)
     ``json+!>((folder:enjs:notes-json u.fld))
     ::  /x/v0/members/<ship>/<name>
       [%x %v0 %members ship=@ name=@ ~]
     =/  =flag:notes  [(slav %p ship.pole) `@tas`name.pole]
-    =/  entry  (get-book flag)
-    ?~  entry  ``json+!>(~)
+    ?~  entry=(get-book flag)  ``json+!>(~)
     ?>  (can-view-flag flag src.bowl)
     =/  mlist=(list json)
       %+  turn  ~(tap by members.notebook-state.u.entry)
@@ -931,8 +918,7 @@
 ++  can-view-flag
   |=  [=flag:notes who=ship]
   ^-  ?
-  =/  entry  (get-book flag)
-  ?~  entry  |
+  ?~  entry=(get-book flag)  |
   =/  mbrs=members:notes
     members.notebook-state.u.entry
   ?~  (~(get by mbrs) who)  |
@@ -987,9 +973,8 @@
     |=  f=flag:notes
     ^+  se-core
     ?>  =(ship.f our.bowl)
-    =/  entry=(unit [=net:notes =notebook-state:notes])
-      (~(get by books.state) f)
-    ?~  entry  ~|(se-abed-not-found+f !!)
+    ?~  entry=(~(get by books.state) f)
+      ~|(se-abed-not-found+f !!)
     =/  [=net:notes =notebook-state:notes]  u.entry
     ?>  ?=(%pub -.net)
     se-core(flag f, log log.net, notebook-state notebook-state)
@@ -1015,8 +1000,7 @@
     ^+  se-core
     =/  ts=@da
       |-
-      =/  existing  (get:log-on:notes log now.bowl)
-      ?~  existing  now.bowl
+      ?~  existing=(get:log-on:notes log now.bowl)  now.bowl
       $(now.bowl `@da`(add now.bowl ^~((div ~s1 (bex 16)))))
     =.  log  (put:log-on:notes log [ts upd])
     %-  give
@@ -1562,9 +1546,8 @@
   ++  no-abed
     |=  f=flag:notes
     ^+  no-core
-    =/  entry=(unit [=net:notes =notebook-state:notes])
-      (~(get by books.state) f)
-    ?~  entry  ~|(no-abed-not-found+f !!)
+    ?~  entry=(~(get by books.state) f)
+      ~|(no-abed-not-found+f !!)
     =/  [=net:notes =notebook-state:notes]  u.entry
     ?>  ?=(%sub -.net)
     no-core(flag f, net net, notebook-state notebook-state)
