@@ -78,7 +78,7 @@
 ::  helper core
 ::
 |_  [=bowl:gall cards=(list card)]
-++  dummy  'note-path-fixed-height-v29'
+++  dummy  'split-favicon-and-icon-v37'
 ++  abet  [(flop cards) state]
 ++  cor   .
 ++  emit  |=(=card cor(cards [card cards]))
@@ -89,6 +89,71 @@
   ^+  cor
   %-  emit
   [%pass /eyre/notes %arvo %e %connect [~ /notes] %notes]
+::
+::  +manifest: web app manifest served at /notes/manifest.json. The
+::  start_url and scope are anchored at /notes/ so the install prompt
+::  and the service worker only see this app's URL space.
+++  manifest
+  ^-  @t
+  '''
+  {
+    "name": "Notes",
+    "short_name": "Notes",
+    "description": "Collaborative markdown notebooks",
+    "start_url": "/notes/",
+    "scope": "/notes/",
+    "display": "standalone",
+    "background_color": "#0f0f0f",
+    "theme_color": "#7c6af7",
+    "icons": [
+      { "src": "/notes/icon.svg", "sizes": "192x192", "type": "image/svg+xml", "purpose": "any" },
+      { "src": "/notes/icon.svg", "sizes": "512x512", "type": "image/svg+xml", "purpose": "any" },
+      { "src": "/notes/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+    ]
+  }
+  '''
+::
+::  +service-worker: pass-through SW that satisfies the install criteria
+::  on Chrome/Android without taking responsibility for offline caching
+::  yet. Real offline support (app-shell + IndexedDB) is deferred.
+++  service-worker
+  ^-  @t
+  '''
+  self.addEventListener("install", (e) => self.skipWaiting());
+  self.addEventListener("activate", (e) => self.clients.claim());
+  self.addEventListener("fetch", (e) => {
+    // No caching: defer offline support to a later pass. We still need
+    // a fetch handler for the install prompt to be eligible.
+  });
+  '''
+::
+::  +favicon-svg: tight Paper-original design used for the browser tab.
+::  Inset 96/66 (19%/13%) — looks great at 16-32px favicon size where
+::  more padding would just shrink the recognizable shape.
+++  favicon-svg
+  ^-  @t
+  '''
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+    <rect width="512" height="512" rx="112" fill="#7C6AF7"/>
+    <rect x="96" y="66" width="320" height="380" rx="32" fill="none" stroke="#FFFFFF" stroke-width="18"/>
+    <line x1="186" y1="66" x2="186" y2="446" stroke="#FFFFFF" stroke-width="18" stroke-linecap="round"/>
+  </svg>
+  '''
+::
+::  +icon-svg: padded variant used by the manifest (PWA install / dock /
+::  home-screen icon). Same Paper proportions, scaled to ~70% of the
+::  canvas with the stroke trimmed proportionally so the design reads
+::  consistently when shrunk. macOS/iOS app icons want roughly 18-24%
+::  padding around content.
+++  icon-svg
+  ^-  @t
+  '''
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+    <rect width="512" height="512" rx="112" fill="#7C6AF7"/>
+    <rect x="144" y="123" width="224" height="266" rx="22" fill="none" stroke="#FFFFFF" stroke-width="16"/>
+    <line x1="207" y1="123" x2="207" y2="389" stroke="#FFFFFF" stroke-width="16" stroke-linecap="round"/>
+  </svg>
+  '''
 ::
 ++  load
   |=  old=vase
@@ -148,6 +213,27 @@
     =/  req  !<([eyre-id=@ta =inbound-request:eyre] vase)
     =/  url=@t  url.request.inbound-request.req
     =/  url-tape=tape  (trip url)
+    ::  drop any query string for path-only matching
+    =/  url-path=tape
+      =/  qi=(unit @ud)  (find "?" url-tape)
+      ?~  qi  url-tape
+      (scag u.qi url-tape)
+    ::  PWA-related static assets: manifest, service worker, icon.
+    ::  Each returns [body content-type] or ~. Served scoped under
+    ::  /notes/ so the SW can control the app's URL space.
+    =/  asset=(unit [body=@t ct=@t])
+      ?:  =("/notes/manifest.json" url-path)
+        `[manifest 'application/manifest+json']
+      ?:  =("/notes/sw.js" url-path)
+        ::  Service-Worker-Allowed isn't required since the SW lives at
+        ::  /notes/sw.js and only needs to control /notes/, but text/javascript
+        ::  is required by some browsers for SW registration to succeed.
+        `[service-worker 'text/javascript']
+      ?:  =("/notes/icon.svg" url-path)
+        `[icon-svg 'image/svg+xml']
+      ?:  =("/notes/favicon.svg" url-path)
+        `[favicon-svg 'image/svg+xml']
+      ~
     ::  check if this is a published note request: /notes/pub/~ship/name/{note-id}
     =/  pub-html=(unit @t)
       ?.  =("/notes/pub/" (scag 11 url-tape))  ~
@@ -181,15 +267,18 @@
       ?.  ?=([@ @ ~] pax)  ~
       ?~  (slaw %p i.pax)  ~
       `share-page
-    ::  serve published note, share page, or the UI
-    =/  data=octs
-      ?^  pub-html
-        [(met 3 u.pub-html) u.pub-html]
-      ?^  share-html
-        [(met 3 u.share-html) u.share-html]
-      [(met 3 index) index]
+    ::  serve asset, published note, share page, or the UI (in that order)
+    =/  body=@t
+      ?^  asset      body.u.asset
+      ?^  pub-html   u.pub-html
+      ?^  share-html  u.share-html
+      index
+    =/  ct=@t
+      ?^  asset  ct.u.asset
+      'text/html'
+    =/  data=octs  [(met 3 body) body]
     =/  headers=(list [key=@t value=@t])
-      :~  ['content-type' 'text/html']
+      :~  ['content-type' ct]
       ==
     =/  =response-header:http  [200 headers]
     %-  emil
@@ -1146,12 +1235,16 @@
     =/  nt=note:notes
       (~(got by notes.notebook-state) note-id.cmd)
     ?>  =(notebook-id.nt notebook-id.cmd)
+    ::  Title changes do NOT bump revision. The revision counter tracks
+    ::  body-md only — that's what optimistic concurrency on update-note
+    ::  cares about. Bumping rev on rename silently desynced auto-save
+    ::  (which sends body+rename back-to-back) by leaving the server at
+    ::  rev+1 while the client believed it was still at rev.
     =.  nt
       %_  nt
         title       title.cmd
         updated-by  actor.cmd
         updated-at  now.bowl
-        revision    +(revision.nt)
       ==
     =.  notes.notebook-state
       (~(put by notes.notebook-state) note-id.cmd nt)
@@ -1167,13 +1260,13 @@
     =/  fld=folder:notes
       (~(got by folders.notebook-state) folder-id.cmd)
     ?>  =(notebook-id.fld notebook-id.cmd)
+    ::  Move does NOT bump revision; same reasoning as rename.
     =.  nt
       %_  nt
         notebook-id  notebook-id.cmd
         folder-id    folder-id.cmd
         updated-by   actor.cmd
         updated-at   now.bowl
-        revision     +(revision.nt)
       ==
     =.  notes.notebook-state
       (~(put by notes.notebook-state) note-id.cmd nt)

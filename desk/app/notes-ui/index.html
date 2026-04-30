@@ -4,6 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Notes</title>
+<link rel="manifest" href="/notes/manifest.json">
+<link rel="icon" type="image/svg+xml" href="/notes/favicon.svg">
+<link rel="apple-touch-icon" href="/notes/icon.svg">
+<meta name="theme-color" content="#7c6af7">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Notes">
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -1482,7 +1489,7 @@
       <svg class="icon brand-icon"><use href="#i-notebook"/></svg>
       <div class="brand-text">
         <span class="brand-name">Notes</span>
-        <span class="sidebar-version">alpha v0.8.0</span>
+        <span class="sidebar-version">alpha v0.9.0</span>
       </div>
       <button class="icon-btn sidebar-menu-btn" onclick="toggleSidebarMenu()" title="More"><svg class="icon"><use href="#i-menu"/></svg></button>
     </div>
@@ -1729,6 +1736,12 @@ let activeNoteId = null;
 // the editor in read-only mode, or null when viewing the live note.
 let historyEntries = [];
 let historyViewing = null;
+
+// Auto-save debounce. Long enough that we don't fire a save on every
+// keystroke pause — short enough that an idle moment lands work to the
+// server. Combined with the visibilitychange/pagehide flush below,
+// users don't lose work when they background the tab or close it.
+const AUTOSAVE_DEBOUNCE_MS = 30000;
 let dirty = false;
 let savedRevision = 0;
 
@@ -1866,6 +1879,12 @@ async function applyRoute() {
   applyingRoute = true;
   try {
     if (activeNotebookId !== nb.id) await selectNotebook(nb.id);
+    // selectNotebook fires loadFolders/loadNotes WITHOUT awaiting (so
+    // ordinary navigation paints from cache instantly). On a cold refresh
+    // into a deep link there's no cache, so the folders[]/notes[] lookups
+    // below would fall through to root and skip selectNote. Wait for the
+    // fresh data before making routing decisions.
+    await Promise.all([loadFolders(nb.id), loadNotes(nb.id)]);
     // Folder: URL value or implicit root
     const targetFolder = fid && folders[fid] ? fid : rootFolderId();
     if (targetFolder && activeFolderId !== targetFolder) {
@@ -2005,12 +2024,32 @@ async function subscribeEvents() {
   startSSE();
 }
 
+// Pending pokes awaiting their eyre-channel poke-ack. The channel sends
+// back { id, response: "poke", ok: "ok" } on success or { id, response:
+// "poke", err: <tang> } on failure. Without watching for these, a poke
+// that crashes server-side (e.g. revision-mismatch) looks successful at
+// the channel layer (which only confirms enqueue) and the client happily
+// keeps marking dirty work as saved while it never lands. Critical for
+// auto-save reliability.
+const pendingPokes = new Map();
+const POKE_ACK_TIMEOUT_MS = 15000;
+
 function startSSE() {
   if (eventSource) eventSource.close();
   eventSource = new EventSource(`${BASE_URL}/~/channel/${channelId}`, { withCredentials: true });
   eventSource.onmessage = (e) => {
     try {
       const msg = JSON.parse(e.data);
+      // Resolve/reject the matching outstanding pokeAction first; let
+      // handleEvent only see fact/snapshot/inbox messages.
+      if (msg && msg.response === "poke" && pendingPokes.has(msg.id)) {
+        const pending = pendingPokes.get(msg.id);
+        pendingPokes.delete(msg.id);
+        clearTimeout(pending.timer);
+        if (msg.ok === "ok") pending.resolve();
+        else pending.reject(new Error(msg.err || "poke failed"));
+        return;
+      }
       handleEvent(msg);
     } catch {}
   };
@@ -2034,19 +2073,38 @@ async function poke(actions) {
   }
 }
 
+// pokeAction now waits for the agent's actual poke-ack (delivered via the
+// SSE channel) — not just the eyre PUT. Throws on server-side rejection
+// or on a 15s timeout, so callers (notably autoSave) can react to real
+// save failures instead of silently marking dirty work as saved.
 async function pokeAction(action) {
   const id = msgId++;
   // Include _flag for unambiguous notebook routing across ships
   if (activeNotebookFlag) {
     action._flag = activeNotebookFlag;
   }
-  await poke([{
-    id, action: "poke",
-    ship: SHIP.replace("~",""),
-    app: "notes",
-    mark: "notes-action",
-    json: action
-  }]);
+  const ack = new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      pendingPokes.delete(id);
+      reject(new Error("poke-ack timeout"));
+    }, POKE_ACK_TIMEOUT_MS);
+    pendingPokes.set(id, { resolve, reject, timer });
+  });
+  try {
+    await poke([{
+      id, action: "poke",
+      ship: SHIP.replace("~",""),
+      app: "notes",
+      mark: "notes-action",
+      json: action
+    }]);
+  } catch (e) {
+    // PUT itself failed — clean up the pending entry and rethrow.
+    const pending = pendingPokes.get(id);
+    if (pending) { clearTimeout(pending.timer); pendingPokes.delete(id); }
+    throw e;
+  }
+  await ack;
 }
 
 async function scry(path) {
@@ -3878,11 +3936,26 @@ window.addEventListener("resize", () => {
 // ── Editor autosize ──────────────────────────────────────────────────────
 // The textarea lives inside .editor-scroll and does not scroll itself —
 // grow its height to fit content so the outer column scrolls as one document.
+//
+// Setting height to "auto" collapses the textarea to its default height for
+// a single keystroke, which shrinks .editor-scroll's total scrollable area
+// and causes the browser to clamp scrollTop. We snapshot scrollTop before
+// the resize and restore it after so the scroll position survives every
+// keystroke. Skip the round-trip entirely when the height isn't changing.
 function autosizeEditor() {
   const el = document.getElementById("editor");
   if (!el) return;
-  el.style.height = "auto";
-  el.style.height = el.scrollHeight + "px";
+  const scroll = el.closest(".editor-scroll");
+  const prevScrollTop = scroll ? scroll.scrollTop : 0;
+  const target = (() => {
+    el.style.height = "auto";
+    return el.scrollHeight;
+  })();
+  const current = parseInt(el.style.height, 10);
+  if (current !== target) el.style.height = target + "px";
+  if (scroll && scroll.scrollTop !== prevScrollTop) {
+    scroll.scrollTop = prevScrollTop;
+  }
 }
 window.addEventListener("resize", autosizeEditor);
 
@@ -3931,7 +4004,7 @@ function onEditorInput() {
   document.getElementById("save-status").textContent = "";
   if (saveTimer) clearTimeout(saveTimer);
   // Don't arm autoSave while a conflict is unresolved — user must resolve first
-  if (!conflictActive) saveTimer = setTimeout(() => autoSave(), 1500);
+  if (!conflictActive) saveTimer = setTimeout(() => autoSave(), AUTOSAVE_DEBOUNCE_MS);
   checkWikiAutocomplete();
 }
 
@@ -3967,7 +4040,7 @@ async function triggerAutoCreate() {
     editor.selectionStart = editor.selectionEnd = editor.value.length;
     dirty = true;
     if (saveTimer) clearTimeout(saveTimer);
-    saveTimer = setTimeout(() => autoSave(), 1500);
+    saveTimer = setTimeout(() => autoSave(), AUTOSAVE_DEBOUNCE_MS);
   }, 300);
 }
 
@@ -4076,6 +4149,53 @@ async function resolveConflictUseRemote() {
 
 // keep ctrl+s as a force-save
 async function saveNote() { if (saveTimer) clearTimeout(saveTimer); await autoSave(); }
+
+// Last-chance flush when the page is being torn down. Uses fetch with
+// `keepalive: true` so the request continues after the page unloads —
+// browsers limit keepalive bodies to 64KB total per origin, which is
+// enough for almost any single note. We can't await ack here (the page
+// will be gone), so this is fire-and-forget; the conflict banner on
+// next visit handles any drift.
+function flushSaveBeacon() {
+  if (!activeNoteId || !dirty || saving || conflictActive || historyViewing) return;
+  const n = notes[activeNoteId];
+  if (!n) return;
+  const title = document.getElementById("note-title-input").value.trim() || "Untitled";
+  const body = document.getElementById("editor").value;
+  const nb = notebooks[n.notebookId];
+  const isLocal = nb && SHIP && nb.host.replace(/^~/, "") === SHIP.replace(/^~/, "");
+  const sentRev = isLocal ? savedRevision : 0;
+  const items = [];
+  const updateAction = { "update-note": { notebookId: n.notebookId, noteId: activeNoteId, bodyMd: body, expectedRevision: sentRev } };
+  if (activeNotebookFlag) updateAction._flag = activeNotebookFlag;
+  items.push({ id: msgId++, action: "poke", ship: SHIP.replace("~",""), app: "notes", mark: "notes-action", json: updateAction });
+  if (title !== n.title) {
+    const renameAction = { "rename-note": { notebookId: n.notebookId, noteId: activeNoteId, title } };
+    if (activeNotebookFlag) renameAction._flag = activeNotebookFlag;
+    items.push({ id: msgId++, action: "poke", ship: SHIP.replace("~",""), app: "notes", mark: "notes-action", json: renameAction });
+  }
+  try {
+    fetch(`${BASE_URL}/~/channel/${channelId}`, {
+      method: "PUT", credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(items),
+      keepalive: true,
+    });
+  } catch (_) { /* page is closing — nothing to do */ }
+}
+
+// Save when the tab is being backgrounded or closed. visibilitychange
+// fires reliably on tab switch and mobile app background; pagehide is
+// the last point we can issue a request before the page is destroyed.
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden" && dirty) {
+    if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+    // Best-effort async save — we still have time here. If the user
+    // returns before it finishes, the next autoSave is gated by `saving`.
+    autoSave();
+  }
+});
+window.addEventListener("pagehide", () => { flushSaveBeacon(); });
 
 // ── Overflow menu ────────────────────────────────────────────────────────
 function toggleOverflow() {
@@ -5566,6 +5686,18 @@ if (location.protocol !== "file:" && location.hostname) {
   });
 }
 
+// ── PWA install support ──────────────────────────────────────────────────
+// Register the agent-served service worker. The SW is a pass-through (no
+// caching) — its only job is to make the install prompt eligible. Skip when
+// embedded so we don't fight a host page's own SW. Skip on file:// or http
+// where SW registration would fail anyway.
+if ("serviceWorker" in navigator && location.protocol.startsWith("http") && !EMBED_PARAMS.embed) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/notes/sw.js", { scope: "/notes/" }).catch(() => {
+      // Silent fallback — losing PWA install isn't worth a console error.
+    });
+  });
+}
 </script>
 </body>
 </html>

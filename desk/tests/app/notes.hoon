@@ -189,6 +189,38 @@
     |+~[(crip "expected ['v3' 'v2' 'v1'], got {<bodies>}")]
   &+[~ s]
 ::
+::  ====  test-rename-does-not-bump-revision  ====
+::  rename-note must not bump the body-md revision counter, otherwise an
+::  autoSave sequence that fires update-note then rename-note silently
+::  desyncs the client's expected-revision from the server's actual rev,
+::  causing later saves to fail with revision-mismatch and lose work.
+++  test-rename-does-not-bump-revision
+  %-  eval-mare
+  =/  m  (mare ,~)
+  =*  b  bind:m
+  ^-  form:m
+  ;<  ~  b  init-zod
+  ;<  =bowl:gall  b  get-bowl
+  ;<  *  b  (poke-ra [%create-notebook 'NB'])
+  =/  f=flag:notes  (nb-flag our.bowl 1)
+  ;<  *  b  (poke-ra [%create-note 1 2 'Original' 'body'])
+  ;<  *  b  (poke-ra [%update-note 1 3 'edited' 0])
+  ::  body update advanced rev to 1; rename must keep it at 1
+  ;<  *  b  (poke-ra [%rename-note 1 3 'Renamed'])
+  ;<  nt=cage  b
+    (got-peek /x/v0/note/(scot %p ship.f)/[name.f]/'3')
+  |=  s=state
+  =/  jv=json  !<(json q.nt)
+  ?.  ?=([%o *] jv)
+    |+['expected note json object']~
+  =/  rev-j=(unit json)  (~(get by p.jv) 'revision')
+  ?~  rev-j  |+['expected revision field']~
+  ?.  ?=([%n *] u.rev-j)  |+['expected revision to be a number']~
+  =/  rev=@ud  (rash p.u.rev-j dem)
+  ?.  =(rev 1)
+    |+~[(crip "expected rev=1 after update+rename, got rev={<rev>}")]
+  &+[~ s]
+::
 ::  ====  test-history-empty-on-fresh-note  ====
 ::  A note that has never been updated has empty history.
 ++  test-history-empty-on-fresh-note
