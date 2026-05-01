@@ -90,70 +90,113 @@
   %-  emit
   [%pass /eyre/notes %arvo %e %connect [~ /notes] %notes]
 ::
-::  +load: migrate old state to current state-10
-::  Migration cascade: 0→1→2→3→4→5→6→7→8→9→10.
-::  state-9 → state-10: re-slug all flag names from @t cord to @tas term.
+::  +load: migrate old state to current state-10 via linear per-step chain.
+::  Pattern: |^ kelt with =? chain + per-step arms (tloncorp/homestead style).
 ::
 ++  load
-  |=  old=vase
+  |^  |=  =vase
   ^+  cor
-  ::  peek at head tag without type-checking
-  =/  raw=*  q.old
-  =/  tag=@
-    ?:  ?=(^ raw)
-      ;;(@ -.raw)
-    0
-  ::  state-10: current format
-  ?:  =(tag %10)
-    =/  s=current-state  !<(current-state old)
-    =.  state  s
-    cor
-  ::  state-9 → state-10: re-slug all flag names (@t → @tas).
-  ::  Build a translation map (flag-v9 → flag) using each notebook's title+id.
-  ::  Note: subscriber notebooks (ship != our.bowl) are also re-slugged using
-  ::  the host's title; cross-ship subscriptions will need to be re-established
-  ::  since the host's flag slug is computed independently.
-  ?:  =(tag %9)
-    =/  s=state-9:n  !<(state-9:n old)
-    ::  build translation map: old flag-v9 → new flag
-    =/  xlat=(map flag-v9:n flag:n)
-      %-  malt
-      %+  turn  ~(tap by books.s)
-      |=  [f=flag-v9:n [=net:n =notebook-state:n]]
-      =/  nid=@ud  id.notebook.notebook-state
-      =/  new-name=@tas  (slugify title.notebook.notebook-state nid)
-      [f [ship.f new-name]]
-    ::  re-key books
-    =/  new-books=(map flag:n [=net:n =notebook-state:n])
-      %-  malt
-      %+  turn  ~(tap by books.s)
-      |=  [f=flag-v9:n entry=[=net:n =notebook-state:n]]
-      =/  nf=flag:n  (~(got by xlat) f)
-      [nf entry]
-    ::  re-key published
-    =/  new-pub=(map [=flag:n note-id=@ud] @t)
-      %-  malt
-      %+  turn  ~(tap by published.s)
-      |=  [[f=flag-v9:n nid=@ud] html=@t]
-      =/  nf=flag:n  (fall (~(get by xlat) f) [ship.f `@tas`name.f])
-      [[nf nid] html]
-    ::  re-key invites
-    =/  new-invites=(map flag:n invite-info:n)
-      %-  malt
-      %+  turn  ~(tap by invites.s)
-      |=  [f=flag-v9:n info=invite-info:n]
-      =/  nf=flag:n  (fall (~(get by xlat) f) [ship.f `@tas`name.f])
-      [nf info]
-    =.  state  [%10 new-books next-id.s new-pub new-invites]
-    cor
-  ::  state-8 → state-9: move visibility + history into per-notebook-state;
-  ::  rename notebook-members → members.
-  ?:  =(tag %8)
-    =/  s=state-8:n  !<(state-8:n old)
+  =+  !<(old=any-state vase)
+  =?  old  ?=(%1 -.old)  (state-1-to-2 old)
+  =?  old  ?=(%2 -.old)  (state-2-to-3 old)
+  =?  old  ?=(%3 -.old)  (state-3-to-4 old)
+  =?  old  ?=(%4 -.old)  (state-4-to-5 old)
+  =?  old  ?=(%5 -.old)  (state-5-to-6 old)
+  =?  old  ?=(%6 -.old)  (state-6-to-7 old)
+  =?  old  ?=(%7 -.old)  (state-7-to-8 old)
+  =?  old  ?=(%8 -.old)  (state-8-to-9 old)
+  =?  old  ?=(%9 -.old)  (state-9-to-10 old)
+  ?>  ?=(%10 -.old)
+  =.  state  old
+  cor
+  ::
+  +$  any-state
+    $%  state-10:n
+        state-9:n
+        state-8:n
+        state-7:n
+        state-6:n
+        state-5:n
+        state-4:n
+        state-3:n
+        state-2:n
+        state-1:n
+    ==
+  ::
+  ++  state-1-to-2
+    ~>  %spin.['state-1-to-2']
+    |=  s=state-1:n
+    ^-  state-2:n
+    [%2 books.s next-id.s ~]
+  ::
+  ++  state-2-to-3
+    ~>  %spin.['state-2-to-3']
+    |=  s=state-2:n
+    ^-  state-3:n
+    [%3 books.s next-id.s ~]
+  ::
+  ++  state-3-to-4
+    ~>  %spin.['state-3-to-4']
+    |=  s=state-3:n
+    ^-  state-4:n
+    [%4 books.s next-id.s published.s ~]
+  ::
+  ++  state-4-to-5
+    ~>  %spin.['state-4-to-5']
+    |=  s=state-4:n
+    ^-  state-5:n
+    [%5 books.s next-id.s published.s visibilities.s ~]
+  ::
+  ++  state-5-to-6
+    ~>  %spin.['state-5-to-6']
+    |=  s=state-5:n
+    ^-  state-6:n
+    =/  new-invites=(map flag-v9:n invite-info:n)
+      %-  ~(run by invites.s)
+      |=  ii=invite-info-5:n
+      ^-  invite-info:n
+      [from.ii sent-at.ii '']
+    [%6 books.s next-id.s published.s visibilities.s new-invites]
+  ::
+  ++  state-6-to-7
+    ~>  %spin.['state-6-to-7']
+    |=  s=state-6:n
+    ^-  state-7:n
+    [%7 books.s next-id.s published.s visibilities.s invites.s ~]
+  ::
+  ++  state-7-to-8
+    ~>  %spin.['state-7-to-8']
+    |=  s=state-7:n
+    ^-  state-8:n
+    =/  new-books=(map flag-v9:n [=net:n =notebook-state-v8:n])
+      %-  ~(run by books.s)
+      |=  [net=net-v0:n old-nbs=notebook-state-v0:n]
+      =/  new-nb=notebook:n
+        :*  id.notebook.old-nbs  title.notebook.old-nbs
+            created-by.notebook.old-nbs  created-at.notebook.old-nbs
+            updated-at.notebook.old-nbs  created-by.notebook.old-nbs
+        ==
+      =/  new-folders=(map @ud folder:n)
+        %-  ~(run by folders.old-nbs)
+        |=  fld=folder-v0:n
+        :*  id.fld  notebook-id.fld  name.fld  parent-folder-id.fld
+            created-by.fld  created-at.fld  updated-at.fld  created-by.fld
+        ==
+      =/  new-net=net:n
+        ?-  -.net
+          %pub  [%pub *log:n]
+          %sub  [%sub time.net init.net]
+        ==
+      [new-net [new-nb notebook-members.old-nbs new-folders notes.old-nbs]]
+    [%8 new-books next-id.s published.s visibilities.s invites.s history.s]
+  ::
+  ++  state-8-to-9
+    ~>  %spin.['state-8-to-9']
+    |=  s=state-8:n
+    ^-  state-9:n
     =/  new-books=(map flag-v9:n [=net:n =notebook-state:n])
       %-  ~(urn by books.s)
       |=  [f=flag-v9:n [=net:n old-nbs=notebook-state-v8:n]]
-      ::  filter history entries for this notebook flag; key by note-id only
       =/  nb-hist=(map @ud (list note-revision:n))
         %-  malt
         %+  murn  ~(tap by history.s)
@@ -169,169 +212,39 @@
             nb-hist
         ==
       [net new-nbs]
-    =/  s9=state-9:n
-      [%9 new-books next-id.s published.s invites.s]
-    (load !>(s9))
-  ::  state-7 → state-8: backfill updated-by; truncate pub logs.
-  ?:  =(tag %7)
-    =/  s=state-7:n  !<(state-7:n old)
-    =/  new-books=(map flag-v9:n [=net:n =notebook-state-v8:n])
-      %-  ~(run by books.s)
-      |=  [net=net-v0:n old-nbs=notebook-state-v0:n]
-      =/  new-nb=notebook:n
-        :*  id.notebook.old-nbs  title.notebook.old-nbs
-            created-by.notebook.old-nbs  created-at.notebook.old-nbs
-            updated-at.notebook.old-nbs  created-by.notebook.old-nbs
-        ==
-      =/  new-folders=(map @ud folder:n)
-        %-  ~(run by folders.old-nbs)
-        |=  fld=folder-v0:n
-        :*  id.fld  notebook-id.fld  name.fld  parent-folder-id.fld
-            created-by.fld  created-at.fld  updated-at.fld  created-by.fld
-        ==
-      =/  new-net=net:n
-        ?-  -.net
-          %pub  [%pub *log:n]
-          %sub  [%sub time.net init.net]
-        ==
-      [new-net [new-nb notebook-members.old-nbs new-folders notes.old-nbs]]
-    =/  s8=state-8:n
-      [%8 new-books next-id.s published.s visibilities.s invites.s history.s]
-    =/  s8-vase=vase  !>(s8)
-    (load s8-vase)
-  ::  state-6 → state-8: add empty history, backfill updated-by
-  ?:  =(tag %6)
-    =/  s=state-6:n  !<(state-6:n old)
-    =/  new-books=(map flag-v9:n [=net:n =notebook-state-v8:n])
-      %-  ~(run by books.s)
-      |=  [net=net-v0:n old-nbs=notebook-state-v0:n]
-      =/  new-nb=notebook:n
-        :*  id.notebook.old-nbs  title.notebook.old-nbs
-            created-by.notebook.old-nbs  created-at.notebook.old-nbs
-            updated-at.notebook.old-nbs  created-by.notebook.old-nbs
-        ==
-      =/  new-folders=(map @ud folder:n)
-        %-  ~(run by folders.old-nbs)
-        |=  fld=folder-v0:n
-        :*  id.fld  notebook-id.fld  name.fld  parent-folder-id.fld
-            created-by.fld  created-at.fld  updated-at.fld  created-by.fld
-        ==
-      =/  new-net=net:n
-        ?-  -.net
-          %pub  [%pub *log:n]
-          %sub  [%sub time.net init.net]
-        ==
-      [new-net [new-nb notebook-members.old-nbs new-folders notes.old-nbs]]
-    =/  s8=state-8:n
-      [%8 new-books next-id.s published.s visibilities.s invites.s ~]
-    (load !>(s8))
-  ::  state-5 → state-8: drop old-shape invites, backfill updated-by
-  ?:  =(tag %5)
-    =/  s=state-5:n  !<(state-5:n old)
-    =/  new-books=(map flag-v9:n [=net:n =notebook-state-v8:n])
-      %-  ~(run by books.s)
-      |=  [net=net-v0:n old-nbs=notebook-state-v0:n]
-      =/  new-nb=notebook:n
-        :*  id.notebook.old-nbs  title.notebook.old-nbs
-            created-by.notebook.old-nbs  created-at.notebook.old-nbs
-            updated-at.notebook.old-nbs  created-by.notebook.old-nbs
-        ==
-      =/  new-folders=(map @ud folder:n)
-        %-  ~(run by folders.old-nbs)
-        |=  fld=folder-v0:n
-        :*  id.fld  notebook-id.fld  name.fld  parent-folder-id.fld
-            created-by.fld  created-at.fld  updated-at.fld  created-by.fld
-        ==
-      [[%pub *log:n] [new-nb notebook-members.old-nbs new-folders notes.old-nbs]]
-    =/  s8=state-8:n
-      [%8 new-books next-id.s published.s visibilities.s ~ ~]
-    (load !>(s8))
-  ::  state-4 → state-8: add empty invites + history, backfill updated-by
-  ?:  =(tag %4)
-    =/  s=state-4:n  !<(state-4:n old)
-    =/  new-books=(map flag-v9:n [=net:n =notebook-state-v8:n])
-      %-  ~(run by books.s)
-      |=  [net=net-v0:n old-nbs=notebook-state-v0:n]
-      =/  new-nb=notebook:n
-        :*  id.notebook.old-nbs  title.notebook.old-nbs
-            created-by.notebook.old-nbs  created-at.notebook.old-nbs
-            updated-at.notebook.old-nbs  created-by.notebook.old-nbs
-        ==
-      =/  new-folders=(map @ud folder:n)
-        %-  ~(run by folders.old-nbs)
-        |=  fld=folder-v0:n
-        :*  id.fld  notebook-id.fld  name.fld  parent-folder-id.fld
-            created-by.fld  created-at.fld  updated-at.fld  created-by.fld
-        ==
-      [[%pub *log:n] [new-nb notebook-members.old-nbs new-folders notes.old-nbs]]
-    =/  s8=state-8:n
-      [%8 new-books next-id.s published.s visibilities.s ~ ~]
-    (load !>(s8))
-  ::  state-3 → state-8: add empty visibilities + invites + history, backfill updated-by
-  ?:  =(tag %3)
-    =/  s=state-3:n  !<(state-3:n old)
-    =/  new-books=(map flag-v9:n [=net:n =notebook-state-v8:n])
-      %-  ~(run by books.s)
-      |=  [net=net-v0:n old-nbs=notebook-state-v0:n]
-      =/  new-nb=notebook:n
-        :*  id.notebook.old-nbs  title.notebook.old-nbs
-            created-by.notebook.old-nbs  created-at.notebook.old-nbs
-            updated-at.notebook.old-nbs  created-by.notebook.old-nbs
-        ==
-      =/  new-folders=(map @ud folder:n)
-        %-  ~(run by folders.old-nbs)
-        |=  fld=folder-v0:n
-        :*  id.fld  notebook-id.fld  name.fld  parent-folder-id.fld
-            created-by.fld  created-at.fld  updated-at.fld  created-by.fld
-        ==
-      [[%pub *log:n] [new-nb notebook-members.old-nbs new-folders notes.old-nbs]]
-    =/  s8=state-8:n
-      [%8 new-books next-id.s published.s ~ ~ ~]
-    (load !>(s8))
-  ::  state-2 → state-8: drop published, backfill
-  ?:  =(tag %2)
-    =/  s=state-2:n  !<(state-2:n old)
-    =/  new-books=(map flag-v9:n [=net:n =notebook-state-v8:n])
-      %-  ~(run by books.s)
-      |=  [net=net-v0:n old-nbs=notebook-state-v0:n]
-      =/  new-nb=notebook:n
-        :*  id.notebook.old-nbs  title.notebook.old-nbs
-            created-by.notebook.old-nbs  created-at.notebook.old-nbs
-            updated-at.notebook.old-nbs  created-by.notebook.old-nbs
-        ==
-      =/  new-folders=(map @ud folder:n)
-        %-  ~(run by folders.old-nbs)
-        |=  fld=folder-v0:n
-        :*  id.fld  notebook-id.fld  name.fld  parent-folder-id.fld
-            created-by.fld  created-at.fld  updated-at.fld  created-by.fld
-        ==
-      [[%pub *log:n] [new-nb notebook-members.old-nbs new-folders notes.old-nbs]]
-    =/  s8=state-8:n
-      [%8 new-books next-id.s ~ ~ ~ ~]
-    (load !>(s8))
-  ::  state-1 → state-8: backfill
-  ?:  =(tag %1)
-    =/  s=state-1:n  !<(state-1:n old)
-    =/  new-books=(map flag-v9:n [=net:n =notebook-state-v8:n])
-      %-  ~(run by books.s)
-      |=  [net=net-v0:n old-nbs=notebook-state-v0:n]
-      =/  new-nb=notebook:n
-        :*  id.notebook.old-nbs  title.notebook.old-nbs
-            created-by.notebook.old-nbs  created-at.notebook.old-nbs
-            updated-at.notebook.old-nbs  created-by.notebook.old-nbs
-        ==
-      =/  new-folders=(map @ud folder:n)
-        %-  ~(run by folders.old-nbs)
-        |=  fld=folder-v0:n
-        :*  id.fld  notebook-id.fld  name.fld  parent-folder-id.fld
-            created-by.fld  created-at.fld  updated-at.fld  created-by.fld
-        ==
-      [[%pub *log:n] [new-nb notebook-members.old-nbs new-folders notes.old-nbs]]
-    =/  s8=state-8:n
-      [%8 new-books next-id.s ~ ~ ~ ~]
-    (load !>(s8))
-  ::  state-0 or unknown: start fresh
-  cor
+    [%9 new-books next-id.s published.s invites.s]
+  ::
+  ++  state-9-to-10
+    ~>  %spin.['state-9-to-10']
+    |=  s=state-9:n
+    ^-  state-10:n
+    =/  xlat=(map flag-v9:n flag:n)
+      %-  malt
+      %+  turn  ~(tap by books.s)
+      |=  [f=flag-v9:n [=net:n =notebook-state:n]]
+      =/  nid=@ud  id.notebook.notebook-state
+      =/  new-name=@tas  (slugify title.notebook.notebook-state nid)
+      [f [ship.f new-name]]
+    =/  new-books=(map flag:n [=net:n =notebook-state:n])
+      %-  malt
+      %+  turn  ~(tap by books.s)
+      |=  [f=flag-v9:n entry=[=net:n =notebook-state:n]]
+      =/  nf=flag:n  (~(got by xlat) f)
+      [nf entry]
+    =/  new-pub=(map [=flag:n note-id=@ud] @t)
+      %-  malt
+      %+  turn  ~(tap by published.s)
+      |=  [[f=flag-v9:n nid=@ud] html=@t]
+      =/  nf=flag:n  (fall (~(get by xlat) f) [ship.f `@tas`name.f])
+      [[nf nid] html]
+    =/  new-invites=(map flag:n invite-info:n)
+      %-  malt
+      %+  turn  ~(tap by invites.s)
+      |=  [f=flag-v9:n info=invite-info:n]
+      =/  nf=flag:n  (fall (~(get by xlat) f) [ship.f `@tas`name.f])
+      [nf info]
+    [%10 new-books next-id.s new-pub new-invites]
+  --
 ::
 ++  poke
   |=  [=mark =vase]
