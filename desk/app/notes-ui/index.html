@@ -1950,8 +1950,21 @@ let pendingShareResolve = null;
 
 async function ensureJoinedToFlag(flag) {
   if (!flag || !flag.includes("/")) return null;
-  let nb = Object.values(notebooks).find(n => n.flag === flag);
-  if (nb) return nb;
+  // Fast path: in-memory notebooks cache.
+  if (notebooks[flag]) return notebooks[flag];
+  // Cache miss can mean (a) we genuinely don't have the notebook, or
+  // (b) the cache hasn't populated yet — most commonly a fresh page
+  // load where the route resolves before, or in spite of, the bootstrap
+  // loadNotebooks. Confirm via a direct scry of just this flag before
+  // showing the join modal — agent returns the notebook object if we
+  // can view it (i.e. we're a member), or JSON null otherwise.
+  const found = await scry(`/v0/notebook/${flag}`);
+  if (found && found.notebook) {
+    // We DO have it. Refresh the full list so the rest of the UI sees it.
+    await loadNotebooks();
+    if (notebooks[flag]) return notebooks[flag];
+  }
+  // Truly not joined; prompt to join.
   const wantJoin = await promptJoinShared(flag);
   if (!wantJoin) return null;
   return joinRemoteAndWait(flag);
