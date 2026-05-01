@@ -1,13 +1,13 @@
 ::  notes: shared notebook Gall agent (dual-mode host/subscriber)
 ::
-/-  notes
+/-  n=notes
 /+  default-agent, dbug, verb, notes-json
 /=  ui           /lib/notes-ui
 /=  share-page   /lib/notes-share
 ::
 |%
 +$  card  card:agent:gall
-+$  current-state  state-10:notes
++$  current-state  state-10:n
 --
 ::
 =|  current-state
@@ -78,7 +78,7 @@
 ::  helper core
 ::
 |_  [=bowl:gall cards=(list card)]
-++  dummy  'v0.10.0-http-extracted'
+++  dummy  'v0.10.0-type-prefix-n'
 ++  abet  [(flop cards) state]
 ++  cor   .
 ++  emit  |=(=card cor(cards [card cards]))
@@ -179,53 +179,53 @@
   ::  the host's title; cross-ship subscriptions will need to be re-established
   ::  since the host's flag slug is computed independently.
   ?:  =(tag %9)
-    =/  s=state-9:notes  !<(state-9:notes old)
+    =/  s=state-9:n  !<(state-9:n old)
     ::  build translation map: old flag-v9 → new flag
-    =/  xlat=(map flag-v9:notes flag:notes)
+    =/  xlat=(map flag-v9:n flag:n)
       %-  malt
       %+  turn  ~(tap by books.s)
-      |=  [f=flag-v9:notes [=net:notes =notebook-state:notes]]
+      |=  [f=flag-v9:n [=net:n =notebook-state:n]]
       =/  nid=@ud  id.notebook.notebook-state
       =/  new-name=@tas  (slugify title.notebook.notebook-state nid)
       [f [ship.f new-name]]
     ::  re-key books
-    =/  new-books=(map flag:notes [=net:notes =notebook-state:notes])
+    =/  new-books=(map flag:n [=net:n =notebook-state:n])
       %-  malt
       %+  turn  ~(tap by books.s)
-      |=  [f=flag-v9:notes entry=[=net:notes =notebook-state:notes]]
-      =/  nf=flag:notes  (~(got by xlat) f)
+      |=  [f=flag-v9:n entry=[=net:n =notebook-state:n]]
+      =/  nf=flag:n  (~(got by xlat) f)
       [nf entry]
     ::  re-key published
-    =/  new-pub=(map [=flag:notes note-id=@ud] @t)
+    =/  new-pub=(map [=flag:n note-id=@ud] @t)
       %-  malt
       %+  turn  ~(tap by published.s)
-      |=  [[f=flag-v9:notes nid=@ud] html=@t]
-      =/  nf=flag:notes  (fall (~(get by xlat) f) [ship.f `@tas`name.f])
+      |=  [[f=flag-v9:n nid=@ud] html=@t]
+      =/  nf=flag:n  (fall (~(get by xlat) f) [ship.f `@tas`name.f])
       [[nf nid] html]
     ::  re-key invites
-    =/  new-invites=(map flag:notes invite-info:notes)
+    =/  new-invites=(map flag:n invite-info:n)
       %-  malt
       %+  turn  ~(tap by invites.s)
-      |=  [f=flag-v9:notes info=invite-info:notes]
-      =/  nf=flag:notes  (fall (~(get by xlat) f) [ship.f `@tas`name.f])
+      |=  [f=flag-v9:n info=invite-info:n]
+      =/  nf=flag:n  (fall (~(get by xlat) f) [ship.f `@tas`name.f])
       [nf info]
     =.  state  [%10 new-books next-id.s new-pub new-invites]
     cor
   ::  state-8 → state-9: move visibility + history into per-notebook-state;
   ::  rename notebook-members → members.
   ?:  =(tag %8)
-    =/  s=state-8:notes  !<(state-8:notes old)
-    =/  new-books=(map flag-v9:notes [=net:notes =notebook-state:notes])
+    =/  s=state-8:n  !<(state-8:n old)
+    =/  new-books=(map flag-v9:n [=net:n =notebook-state:n])
       %-  ~(urn by books.s)
-      |=  [f=flag-v9:notes [=net:notes old-nbs=notebook-state-v8:notes]]
+      |=  [f=flag-v9:n [=net:n old-nbs=notebook-state-v8:n]]
       ::  filter history entries for this notebook flag; key by note-id only
-      =/  nb-hist=(map @ud (list note-revision:notes))
+      =/  nb-hist=(map @ud (list note-revision:n))
         %-  malt
         %+  murn  ~(tap by history.s)
-        |=  [[kf=flag-v9:notes nid=@ud] v=(list note-revision:notes)]
+        |=  [[kf=flag-v9:n nid=@ud] v=(list note-revision:n)]
         ?.  =(kf f)  ~
         `[nid v]
-      =/  new-nbs=notebook-state:notes
+      =/  new-nbs=notebook-state:n
         :*  notebook.old-nbs
             notebook-members.old-nbs
             (fall (~(get by visibilities.s) f) %private)
@@ -234,165 +234,165 @@
             nb-hist
         ==
       [net new-nbs]
-    =/  s9=state-9:notes
+    =/  s9=state-9:n
       [%9 new-books next-id.s published.s invites.s]
     (load !>(s9))
   ::  state-7 → state-8: backfill updated-by; truncate pub logs.
   ?:  =(tag %7)
-    =/  s=state-7:notes  !<(state-7:notes old)
-    =/  new-books=(map flag-v9:notes [=net:notes =notebook-state-v8:notes])
+    =/  s=state-7:n  !<(state-7:n old)
+    =/  new-books=(map flag-v9:n [=net:n =notebook-state-v8:n])
       %-  ~(run by books.s)
-      |=  [net=net-v0:notes old-nbs=notebook-state-v0:notes]
-      =/  new-nb=notebook:notes
+      |=  [net=net-v0:n old-nbs=notebook-state-v0:n]
+      =/  new-nb=notebook:n
         :*  id.notebook.old-nbs  title.notebook.old-nbs
             created-by.notebook.old-nbs  created-at.notebook.old-nbs
             updated-at.notebook.old-nbs  created-by.notebook.old-nbs
         ==
-      =/  new-folders=(map @ud folder:notes)
+      =/  new-folders=(map @ud folder:n)
         %-  ~(run by folders.old-nbs)
-        |=  fld=folder-v0:notes
+        |=  fld=folder-v0:n
         :*  id.fld  notebook-id.fld  name.fld  parent-folder-id.fld
             created-by.fld  created-at.fld  updated-at.fld  created-by.fld
         ==
-      =/  new-net=net:notes
+      =/  new-net=net:n
         ?-  -.net
-          %pub  [%pub *log:notes]
+          %pub  [%pub *log:n]
           %sub  [%sub time.net init.net]
         ==
       [new-net [new-nb notebook-members.old-nbs new-folders notes.old-nbs]]
-    =/  s8=state-8:notes
+    =/  s8=state-8:n
       [%8 new-books next-id.s published.s visibilities.s invites.s history.s]
     =/  s8-vase=vase  !>(s8)
     (load s8-vase)
   ::  state-6 → state-8: add empty history, backfill updated-by
   ?:  =(tag %6)
-    =/  s=state-6:notes  !<(state-6:notes old)
-    =/  new-books=(map flag-v9:notes [=net:notes =notebook-state-v8:notes])
+    =/  s=state-6:n  !<(state-6:n old)
+    =/  new-books=(map flag-v9:n [=net:n =notebook-state-v8:n])
       %-  ~(run by books.s)
-      |=  [net=net-v0:notes old-nbs=notebook-state-v0:notes]
-      =/  new-nb=notebook:notes
+      |=  [net=net-v0:n old-nbs=notebook-state-v0:n]
+      =/  new-nb=notebook:n
         :*  id.notebook.old-nbs  title.notebook.old-nbs
             created-by.notebook.old-nbs  created-at.notebook.old-nbs
             updated-at.notebook.old-nbs  created-by.notebook.old-nbs
         ==
-      =/  new-folders=(map @ud folder:notes)
+      =/  new-folders=(map @ud folder:n)
         %-  ~(run by folders.old-nbs)
-        |=  fld=folder-v0:notes
+        |=  fld=folder-v0:n
         :*  id.fld  notebook-id.fld  name.fld  parent-folder-id.fld
             created-by.fld  created-at.fld  updated-at.fld  created-by.fld
         ==
-      =/  new-net=net:notes
+      =/  new-net=net:n
         ?-  -.net
-          %pub  [%pub *log:notes]
+          %pub  [%pub *log:n]
           %sub  [%sub time.net init.net]
         ==
       [new-net [new-nb notebook-members.old-nbs new-folders notes.old-nbs]]
-    =/  s8=state-8:notes
+    =/  s8=state-8:n
       [%8 new-books next-id.s published.s visibilities.s invites.s ~]
     (load !>(s8))
   ::  state-5 → state-8: drop old-shape invites, backfill updated-by
   ?:  =(tag %5)
-    =/  s=state-5:notes  !<(state-5:notes old)
-    =/  new-books=(map flag-v9:notes [=net:notes =notebook-state-v8:notes])
+    =/  s=state-5:n  !<(state-5:n old)
+    =/  new-books=(map flag-v9:n [=net:n =notebook-state-v8:n])
       %-  ~(run by books.s)
-      |=  [net=net-v0:notes old-nbs=notebook-state-v0:notes]
-      =/  new-nb=notebook:notes
+      |=  [net=net-v0:n old-nbs=notebook-state-v0:n]
+      =/  new-nb=notebook:n
         :*  id.notebook.old-nbs  title.notebook.old-nbs
             created-by.notebook.old-nbs  created-at.notebook.old-nbs
             updated-at.notebook.old-nbs  created-by.notebook.old-nbs
         ==
-      =/  new-folders=(map @ud folder:notes)
+      =/  new-folders=(map @ud folder:n)
         %-  ~(run by folders.old-nbs)
-        |=  fld=folder-v0:notes
+        |=  fld=folder-v0:n
         :*  id.fld  notebook-id.fld  name.fld  parent-folder-id.fld
             created-by.fld  created-at.fld  updated-at.fld  created-by.fld
         ==
-      [[%pub *log:notes] [new-nb notebook-members.old-nbs new-folders notes.old-nbs]]
-    =/  s8=state-8:notes
+      [[%pub *log:n] [new-nb notebook-members.old-nbs new-folders notes.old-nbs]]
+    =/  s8=state-8:n
       [%8 new-books next-id.s published.s visibilities.s ~ ~]
     (load !>(s8))
   ::  state-4 → state-8: add empty invites + history, backfill updated-by
   ?:  =(tag %4)
-    =/  s=state-4:notes  !<(state-4:notes old)
-    =/  new-books=(map flag-v9:notes [=net:notes =notebook-state-v8:notes])
+    =/  s=state-4:n  !<(state-4:n old)
+    =/  new-books=(map flag-v9:n [=net:n =notebook-state-v8:n])
       %-  ~(run by books.s)
-      |=  [net=net-v0:notes old-nbs=notebook-state-v0:notes]
-      =/  new-nb=notebook:notes
+      |=  [net=net-v0:n old-nbs=notebook-state-v0:n]
+      =/  new-nb=notebook:n
         :*  id.notebook.old-nbs  title.notebook.old-nbs
             created-by.notebook.old-nbs  created-at.notebook.old-nbs
             updated-at.notebook.old-nbs  created-by.notebook.old-nbs
         ==
-      =/  new-folders=(map @ud folder:notes)
+      =/  new-folders=(map @ud folder:n)
         %-  ~(run by folders.old-nbs)
-        |=  fld=folder-v0:notes
+        |=  fld=folder-v0:n
         :*  id.fld  notebook-id.fld  name.fld  parent-folder-id.fld
             created-by.fld  created-at.fld  updated-at.fld  created-by.fld
         ==
-      [[%pub *log:notes] [new-nb notebook-members.old-nbs new-folders notes.old-nbs]]
-    =/  s8=state-8:notes
+      [[%pub *log:n] [new-nb notebook-members.old-nbs new-folders notes.old-nbs]]
+    =/  s8=state-8:n
       [%8 new-books next-id.s published.s visibilities.s ~ ~]
     (load !>(s8))
   ::  state-3 → state-8: add empty visibilities + invites + history, backfill updated-by
   ?:  =(tag %3)
-    =/  s=state-3:notes  !<(state-3:notes old)
-    =/  new-books=(map flag-v9:notes [=net:notes =notebook-state-v8:notes])
+    =/  s=state-3:n  !<(state-3:n old)
+    =/  new-books=(map flag-v9:n [=net:n =notebook-state-v8:n])
       %-  ~(run by books.s)
-      |=  [net=net-v0:notes old-nbs=notebook-state-v0:notes]
-      =/  new-nb=notebook:notes
+      |=  [net=net-v0:n old-nbs=notebook-state-v0:n]
+      =/  new-nb=notebook:n
         :*  id.notebook.old-nbs  title.notebook.old-nbs
             created-by.notebook.old-nbs  created-at.notebook.old-nbs
             updated-at.notebook.old-nbs  created-by.notebook.old-nbs
         ==
-      =/  new-folders=(map @ud folder:notes)
+      =/  new-folders=(map @ud folder:n)
         %-  ~(run by folders.old-nbs)
-        |=  fld=folder-v0:notes
+        |=  fld=folder-v0:n
         :*  id.fld  notebook-id.fld  name.fld  parent-folder-id.fld
             created-by.fld  created-at.fld  updated-at.fld  created-by.fld
         ==
-      [[%pub *log:notes] [new-nb notebook-members.old-nbs new-folders notes.old-nbs]]
-    =/  s8=state-8:notes
+      [[%pub *log:n] [new-nb notebook-members.old-nbs new-folders notes.old-nbs]]
+    =/  s8=state-8:n
       [%8 new-books next-id.s published.s ~ ~ ~]
     (load !>(s8))
   ::  state-2 → state-8: drop published, backfill
   ?:  =(tag %2)
-    =/  s=state-2:notes  !<(state-2:notes old)
-    =/  new-books=(map flag-v9:notes [=net:notes =notebook-state-v8:notes])
+    =/  s=state-2:n  !<(state-2:n old)
+    =/  new-books=(map flag-v9:n [=net:n =notebook-state-v8:n])
       %-  ~(run by books.s)
-      |=  [net=net-v0:notes old-nbs=notebook-state-v0:notes]
-      =/  new-nb=notebook:notes
+      |=  [net=net-v0:n old-nbs=notebook-state-v0:n]
+      =/  new-nb=notebook:n
         :*  id.notebook.old-nbs  title.notebook.old-nbs
             created-by.notebook.old-nbs  created-at.notebook.old-nbs
             updated-at.notebook.old-nbs  created-by.notebook.old-nbs
         ==
-      =/  new-folders=(map @ud folder:notes)
+      =/  new-folders=(map @ud folder:n)
         %-  ~(run by folders.old-nbs)
-        |=  fld=folder-v0:notes
+        |=  fld=folder-v0:n
         :*  id.fld  notebook-id.fld  name.fld  parent-folder-id.fld
             created-by.fld  created-at.fld  updated-at.fld  created-by.fld
         ==
-      [[%pub *log:notes] [new-nb notebook-members.old-nbs new-folders notes.old-nbs]]
-    =/  s8=state-8:notes
+      [[%pub *log:n] [new-nb notebook-members.old-nbs new-folders notes.old-nbs]]
+    =/  s8=state-8:n
       [%8 new-books next-id.s ~ ~ ~ ~]
     (load !>(s8))
   ::  state-1 → state-8: backfill
   ?:  =(tag %1)
-    =/  s=state-1:notes  !<(state-1:notes old)
-    =/  new-books=(map flag-v9:notes [=net:notes =notebook-state-v8:notes])
+    =/  s=state-1:n  !<(state-1:n old)
+    =/  new-books=(map flag-v9:n [=net:n =notebook-state-v8:n])
       %-  ~(run by books.s)
-      |=  [net=net-v0:notes old-nbs=notebook-state-v0:notes]
-      =/  new-nb=notebook:notes
+      |=  [net=net-v0:n old-nbs=notebook-state-v0:n]
+      =/  new-nb=notebook:n
         :*  id.notebook.old-nbs  title.notebook.old-nbs
             created-by.notebook.old-nbs  created-at.notebook.old-nbs
             updated-at.notebook.old-nbs  created-by.notebook.old-nbs
         ==
-      =/  new-folders=(map @ud folder:notes)
+      =/  new-folders=(map @ud folder:n)
         %-  ~(run by folders.old-nbs)
-        |=  fld=folder-v0:notes
+        |=  fld=folder-v0:n
         :*  id.fld  notebook-id.fld  name.fld  parent-folder-id.fld
             created-by.fld  created-at.fld  updated-at.fld  created-by.fld
         ==
-      [[%pub *log:notes] [new-nb notebook-members.old-nbs new-folders notes.old-nbs]]
-    =/  s8=state-8:notes
+      [[%pub *log:n] [new-nb notebook-members.old-nbs new-folders notes.old-nbs]]
+    =/  s8=state-8:n
       [%8 new-books next-id.s ~ ~ ~ ~]
     (load !>(s8))
   ::  state-0 or unknown: start fresh
@@ -410,7 +410,7 @@
     ::  Cross-ship messages (host → invitee notify-invite, subscriber →
     ::  host commands) flow via %notes-command instead.
     ?>  =(our.bowl src.bowl)
-    =+  !<(act=action:notes vase)
+    =+  !<(act=action:n vase)
     ::  top-level actions handled without notebook flag
     ?:  ?=(%create-notebook -.act)
       se-abet:(se-create-notebook:(se-init:se-core act) act)
@@ -424,15 +424,15 @@
       (handle-decline-invite flag.act)
     ::  all other actions are notebook-scoped: [%notebook =flag =a-notebook]
     ?>  ?=(%notebook -.act)
-    =/  =flag:notes  flag.act
-    =/  nb-act=a-notebook:notes  a-notebook.act
+    =/  =flag:n  flag.act
+    =/  nb-act=a-notebook:n  a-notebook.act
     ::  %invite: owner sends invite to a ship — handled locally
     ?:  ?=(%invite -.nb-act)
       (handle-send-invite flag who.nb-act)
     ::  %note [%publish]/[%unpublish]: local-only, not forwarded to remote hosts
     ?:  ?=(%note -.nb-act)
       =/  nid=@ud  id.nb-act
-      =/  n-act=a-note:notes  a-note.nb-act
+      =/  n-act=a-note:n  a-note.nb-act
       ?:  ?=(%publish -.n-act)
         =.  published.state  (~(put by published.state) [flag nid] html.n-act)
         cor
@@ -440,20 +440,20 @@
         =.  published.state  (~(del by published.state) [flag nid])
         cor
       ::  all other note actions: route to se/no core
-      =/  entry=[=net:notes =notebook-state:notes]
+      =/  entry=[=net:n =notebook-state:n]
         (~(got by books.state) flag)
       ?:  ?=(%pub -.net.entry)
         se-abet:(se-poke:(se-abed:se-core flag) [flag (a-notebook-to-c-notebook nb-act)])
       no-abet:(no-action:(no-abed:no-core flag) act)
     ::  all other notebook actions: route to se/no core
-    =/  entry=[=net:notes =notebook-state:notes]
+    =/  entry=[=net:n =notebook-state:n]
       (~(got by books.state) flag)
     ?:  ?=(%pub -.net.entry)
       se-abet:(se-poke:(se-abed:se-core flag) [flag (a-notebook-to-c-notebook nb-act)])
     no-abet:(no-action:(no-abed:no-core flag) act)
   ::
       %notes-command
-    =+  !<(cmd=command:notes vase)
+    =+  !<(cmd=command:n vase)
     ?-    -.cmd
         %notify-invite
       ::  Cross-ship invite delivery — src.bowl validation lives in
@@ -461,7 +461,7 @@
       (handle-notify-invite flag.cmd title.cmd src.bowl)
     ::
         %notebook
-      =/  =flag:notes  flag.cmd
+      =/  =flag:n  flag.cmd
       ::  member-join/-leave: any ship can request membership change on
       ::  a notebook we host; se-member-join/-leave enforces visibility
       ::  + role logic. All other commands assume the sender is already
@@ -502,7 +502,7 @@
     ?~  ship-u=(slaw %p i.pax)  ~
     ?~  nid-u=(slaw %ud i.t.t.pax)  ~
     ?:  =(0 u.nid-u)  ~
-    =/  =flag:notes  [u.ship-u `@tas`i.t.pax]
+    =/  =flag:n  [u.ship-u `@tas`i.t.pax]
     (~(get by published.state) [flag u.nid-u])
   ::  /notes/share/~ship/name → serve the share-redirect page
   =/  share-html=(unit @t)
@@ -531,23 +531,23 @@
 ::  +a-notebook-to-c-notebook: convert a-notebook to c-notebook (same shape except %restore)
 ::  %restore is rewritten to %note [id %update] with the archived body
 ++  a-notebook-to-c-notebook
-  |=  nb-act=a-notebook:notes
-  ^-  c-notebook:notes
+  |=  nb-act=a-notebook:n
+  ^-  c-notebook:n
   ::  a-notebook and c-notebook have identical shapes (c-notebook adds
   ::  %member-join/%member-leave which only arrive via %notes-command, never
   ::  via %notes-action from the client). Direct cast works for all a-notebook arms.
-  ;;(c-notebook:notes nb-act)
+  ;;(c-notebook:n nb-act)
 ::
 ::  +join-remote: initiate joining a notebook on a remote ship
 ++  join-remote
-  |=  =flag:notes
+  |=  =flag:n
   ^+  cor
   ?<  =(our.bowl ship.flag)
   ?<  (~(has by books.state) flag)
-  =/  placeholder-net=net:notes  [%sub *@da |]
-  =/  placeholder-nb=notebook:notes
+  =/  placeholder-net=net:n  [%sub *@da |]
+  =/  placeholder-nb=notebook:n
     [0 '' ship.flag *@da *@da ship.flag]
-  =/  placeholder-nb-state=notebook-state:notes
+  =/  placeholder-nb-state=notebook-state:n
     [placeholder-nb ~ %private ~ ~ ~]
   =.  books.state
     (~(put by books.state) flag [placeholder-net placeholder-nb-state])
@@ -555,11 +555,11 @@
   %-  emit
   :+  %pass
     /notes/join/(scot %p ship.flag)/[name.flag]
-  [%agent [ship.flag %notes] %poke notes-command+!>(`command:notes`[%notebook flag [%member-join ~]])]
+  [%agent [ship.flag %notes] %poke notes-command+!>(`command:n`[%notebook flag [%member-join ~]])]
 ::
 ::  +leave-remote: leave a notebook on a remote ship
 ++  leave-remote
-  |=  =flag:notes
+  |=  =flag:n
   ^+  cor
   ?>  (~(has by books.state) flag)
   no-abet:no-leave:(no-abed:no-core flag)
@@ -567,15 +567,15 @@
 ::  +handle-send-invite: owner-only, fired locally. Pre-add the target ship
 ::  to the notebook's member list and notify their %notes agent.
 ++  handle-send-invite
-  |=  [=flag:notes who=ship]
+  |=  [=flag:n who=ship]
   ^+  cor
   ?>  =(ship.flag our.bowl)
-  =/  entry=[=net:notes =notebook-state:notes]
+  =/  entry=[=net:n =notebook-state:n]
     (~(got by books.state) flag)
   =/  title=@t  title.notebook.notebook-state.entry
   ::  pre-add via se-core (also enforces ownership)
   =.  cor
-    =/  cmd=c-cmd:notes  [flag [%invite who]]
+    =/  cmd=c-cmd:n  [flag [%invite who]]
     se-abet:(se-poke:(se-abed:se-core flag) cmd)
   ::  Poke the invitee's notes agent with %notify-invite as a c-notes
   ::  command — actions are local-only (src must equal our), so cross-
@@ -584,24 +584,24 @@
   %-  emit
   :+  %pass
     /notes/invite/(scot %p who)/(scot %p ship.flag)/[name.flag]
-  [%agent [who %notes] %poke notes-command+!>(`command:notes`[%notify-invite flag title])]
+  [%agent [who %notes] %poke notes-command+!>(`command:n`[%notify-invite flag title])]
 ::
 ::  +handle-notify-invite: called when a remote host pokes us with
 ::  [%notify-invite flag title]. The sender must be the notebook host.
 ++  handle-notify-invite
-  |=  [=flag:notes title=@t from=ship]
+  |=  [=flag:n title=@t from=ship]
   ^+  cor
   ?<  =(from our.bowl)
   ?>  =(from ship.flag)
   ?:  (~(has by books.state) flag)  cor
   ?:  (~(has by invites.state) flag)  cor
-  =/  info=invite-info:notes  [from now.bowl title]
+  =/  info=invite-info:n  [from now.bowl title]
   =.  invites.state  (~(put by invites.state) flag info)
   (give-inbox-received flag from now.bowl title)
 ::
 ::  +handle-accept-invite: user accepted a pending invite
 ++  handle-accept-invite
-  |=  =flag:notes
+  |=  =flag:n
   ^+  cor
   ?>  =(src.bowl our.bowl)
   =.  invites.state  (~(del by invites.state) flag)
@@ -611,7 +611,7 @@
 ::
 ::  +handle-decline-invite: user declined a pending invite
 ++  handle-decline-invite
-  |=  =flag:notes
+  |=  =flag:n
   ^+  cor
   ?>  =(src.bowl our.bowl)
   ?.  (~(has by invites.state) flag)  cor
@@ -620,7 +620,7 @@
 ::
 ::  +give-inbox-received: emit an invite-received event on /v0/inbox/stream
 ++  give-inbox-received
-  |=  [=flag:notes from=ship sent-at=@da title=@t]
+  |=  [=flag:n from=ship sent-at=@da title=@t]
   ^+  cor
   =/  evt=json
     %-  pairs:enjs:format
@@ -636,7 +636,7 @@
 ::
 ::  +give-inbox-removed: emit an invite-removed event on /v0/inbox/stream
 ++  give-inbox-removed
-  |=  =flag:notes
+  |=  =flag:n
   ^+  cor
   =/  evt=json
     %-  pairs:enjs:format
@@ -663,7 +663,7 @@
   ::
       [%v0 %notes ship=@ name=@ %updates ~]
     ::  subscriber watching our notebook's update stream
-    =/  =flag:notes  [(slav %p ship.pole) `@tas`name.pole]
+    =/  =flag:n  [(slav %p ship.pole) `@tas`name.pole]
     ?>  =(our.bowl ship.flag)
     ?~  entry=(get-book flag)  ~|(notebook-not-found+flag !!)
     ?>  ?=(%pub -.net.u.entry)
@@ -673,13 +673,13 @@
   ::
       [%v0 %notes ship=@ name=@ %stream ~]
     ::  local UI subscription
-    =/  =flag:notes  [(slav %p ship.pole) `@tas`name.pole]
+    =/  =flag:n  [(slav %p ship.pole) `@tas`name.pole]
     ?~  entry=(get-book flag)  ~|(notebook-not-found+flag !!)
     ?>  (can-view-flag flag src.bowl)
     ::  send initial snapshot carrying visibility from notebook-state
     %-  give
     :+  %fact  [`path`pole]~
-    notes-response+!>(`response:notes`[%snapshot flag visibility.notebook-state.u.entry notebook-state.u.entry])
+    notes-response+!>(`response:n`[%snapshot flag visibility.notebook-state.u.entry notebook-state.u.entry])
   ::
       [%v0 %inbox %stream ~]
     ?>  =(src.bowl our.bowl)
@@ -697,7 +697,7 @@
       [%x %v0 %notebooks ~]
     =/  nbs=(list json)
       %+  murn  ~(tap by books.state)
-      |=  [=flag:notes [=net:notes =notebook-state:notes]]
+      |=  [=flag:n [=net:n =notebook-state:n]]
       ?.  (can-view-flag flag src.bowl)  ~
       =-  `(pairs:enjs:format -)
       :~  ['host' s+(scot %p ship.flag)]
@@ -708,7 +708,7 @@
     ``json+!>([%a nbs])
     ::  /x/v0/notebook/<ship>/<name>
       [%x %v0 %notebook ship=@ name=@ ~]
-    =/  =flag:notes  [(slav %p ship.pole) `@tas`name.pole]
+    =/  =flag:n  [(slav %p ship.pole) `@tas`name.pole]
     ?~  entry=(get-book flag)  ``json+!>(~)
     ?>  (can-view-flag flag src.bowl)
     =-  ``json+!>((pairs:enjs:format -))
@@ -718,7 +718,7 @@
     ==
     ::  /x/v0/folders/<ship>/<name>
       [%x %v0 %folders ship=@ name=@ ~]
-    =/  =flag:notes  [(slav %p ship.pole) `@tas`name.pole]
+    =/  =flag:n  [(slav %p ship.pole) `@tas`name.pole]
     ?~  entry=(get-book flag)  ``json+!>(~)
     ?>  (can-view-flag flag src.bowl)
     =/  flds=(list json)
@@ -727,7 +727,7 @@
     ``json+!>([%a flds])
     ::  /x/v0/notes/<ship>/<name>
       [%x %v0 %notes ship=@ name=@ ~]
-    =/  =flag:notes  [(slav %p ship.pole) `@tas`name.pole]
+    =/  =flag:n  [(slav %p ship.pole) `@tas`name.pole]
     ?~  entry=(get-book flag)  ``json+!>(~)
     ?>  (can-view-flag flag src.bowl)
     =/  nts=(list json)
@@ -736,7 +736,7 @@
     ``json+!>([%a nts])
     ::  /x/v0/note/<ship>/<name>/<id> — single note by ID
       [%x %v0 %note ship=@ name=@ id=@ ~]
-    =/  =flag:notes  [(slav %p ship.pole) `@tas`name.pole]
+    =/  =flag:n  [(slav %p ship.pole) `@tas`name.pole]
     ?~  entry=(get-book flag)  ``json+!>(~)
     ?>  (can-view-flag flag src.bowl)
     =/  nid=@ud  (slav %ud id.pole)
@@ -745,11 +745,11 @@
     ``json+!>((note:enjs:notes-json u.nt))
     ::  /x/v0/note-history/<ship>/<name>/<id> — revision history for a note
       [%x %v0 %note-history ship=@ name=@ id=@ ~]
-    =/  =flag:notes  [(slav %p ship.pole) `@tas`name.pole]
+    =/  =flag:n  [(slav %p ship.pole) `@tas`name.pole]
     ?~  entry=(get-book flag)  ``json+!>(~)
     ?>  (can-view-flag flag src.bowl)
     =/  nid=@ud  (slav %ud id.pole)
-    =/  revs=(list note-revision:notes)
+    =/  revs=(list note-revision:n)
       (fall (~(get by history.notebook-state.u.entry) nid) ~)
     =/  items=(list json)
       %+  turn  revs
@@ -757,7 +757,7 @@
     ``json+!>([%a items])
     ::  /x/v0/folder/<ship>/<name>/<id> — single folder by ID
       [%x %v0 %folder ship=@ name=@ id=@ ~]
-    =/  =flag:notes  [(slav %p ship.pole) `@tas`name.pole]
+    =/  =flag:n  [(slav %p ship.pole) `@tas`name.pole]
     ?~  entry=(get-book flag)  ``json+!>(~)
     ?>  (can-view-flag flag src.bowl)
     =/  fid=@ud  (slav %ud id.pole)
@@ -766,12 +766,12 @@
     ``json+!>((folder:enjs:notes-json u.fld))
     ::  /x/v0/members/<ship>/<name>
       [%x %v0 %members ship=@ name=@ ~]
-    =/  =flag:notes  [(slav %p ship.pole) `@tas`name.pole]
+    =/  =flag:n  [(slav %p ship.pole) `@tas`name.pole]
     ?~  entry=(get-book flag)  ``json+!>(~)
     ?>  (can-view-flag flag src.bowl)
     =/  mlist=(list json)
       %+  turn  ~(tap by members.notebook-state.u.entry)
-      |=  [who=ship r=role:notes]
+      |=  [who=ship r=role:n]
       %-  pairs:enjs:format
       :~  ['ship' s+(scot %p who)]
           ['role' s+(scot %tas r)]
@@ -781,7 +781,7 @@
       [%x %v0 %published ~]
     =/  items=(list json)
       %+  turn  ~(tap in ~(key by published.state))
-      |=  [=flag:notes note-id=@ud]
+      |=  [=flag:n note-id=@ud]
       %-  pairs:enjs:format
       :~  ['host' s+(scot %p ship.flag)]
           ['flagName' s+name.flag]
@@ -792,7 +792,7 @@
       [%x %v0 %invites ~]
     =/  items=(list json)
       %+  turn  ~(tap by invites.state)
-      |=  [=flag:notes info=invite-info:notes]
+      |=  [=flag:n info=invite-info:n]
       %-  pairs:enjs:format
       :~  ['host' s+(scot %p ship.flag)]
           ['flagName' s+name.flag]
@@ -811,14 +811,14 @@
   ^+  cor
   ?+  pole  ~|(bad-agent-wire+pole !!)
       [%notes %sub ship=@ name=@ ~]
-    =/  =flag:notes
+    =/  =flag:n
       [(slav %p ship.pole) `@tas`name.pole]
     ?.  (~(has by books.state) flag)
       cor
     no-abet:(no-agent:(no-abed:no-core flag) sign)
   ::
       [%notes %join ship=@ name=@ ~]
-    =/  =flag:notes
+    =/  =flag:n
       [(slav %p ship.pole) `@tas`name.pole]
     ?+  -.sign  cor
         %poke-ack
@@ -845,18 +845,18 @@
 ::
 ::  +can-view-flag: check if ship can view a notebook by flag
 ++  can-view-flag
-  |=  [=flag:notes who=ship]
+  |=  [=flag:n who=ship]
   ^-  ?
   ?~  entry=(get-book flag)  |
-  =/  mbrs=members:notes
+  =/  mbrs=members:n
     members.notebook-state.u.entry
   ?~  (~(get by mbrs) who)  |
   &
 ::
 ::  +get-book: lookup a notebook entry by flag
 ++  get-book
-  |=  =flag:notes
-  ^-  (unit [=net:notes =notebook-state:notes])
+  |=  =flag:n
+  ^-  (unit [=net:n =notebook-state:n])
   (~(get by books.state) flag)
 ::
 ::  +strip-query: drop any query string from a URL tape (returns path portion only)
@@ -870,10 +870,10 @@
 ::  +find-flag-by-nid: find the flag for a notebook by numeric notebook id
 ++  find-flag-by-nid
   |=  nid=@ud
-  ^-  flag:notes
-  =/  matches=(list flag:notes)
+  ^-  flag:n
+  =/  matches=(list flag:n)
     %+  murn  ~(tap by books.state)
-    |=  [=flag:notes [=net:notes =notebook-state:notes]]
+    |=  [=flag:n [=net:n =notebook-state:n]]
     ?:  =(nid id.notebook.notebook-state)
       `flag
     ~
@@ -883,28 +883,28 @@
 ::  ====  se-core: server/host core  ====
 ::
 ++  se-core
-  |_  [=flag:notes =log:notes =notebook-state:notes gone=_|]
+  |_  [=flag:n =log:n =notebook-state:n gone=_|]
   ++  se-core  .
   ++  emit  |=(=card se-core(cor cor(cards [card cards])))
   ++  give  |=(=gift:agent:gall (emit %give gift))
   ::
   ::  +se-init: initialize for a brand-new notebook
   ++  se-init
-    |=  act=action:notes
+    |=  act=action:n
     ^+  se-core
     ?>  ?=(%create-notebook -.act)
     =/  nid=@ud  +(next-id.state)
-    =/  =flag:notes  [our.bowl (slugify title.act nid)]
+    =/  =flag:n  [our.bowl (slugify title.act nid)]
     se-core(flag flag)
   ::
   ::  +se-abed: load from state for a given flag
   ++  se-abed
-    |=  f=flag:notes
+    |=  f=flag:n
     ^+  se-core
     ?>  =(ship.f our.bowl)
     ?~  entry=(~(get by books.state) f)
       ~|(se-abed-not-found+f !!)
-    =/  [=net:notes =notebook-state:notes]  u.entry
+    =/  [=net:n =notebook-state:n]  u.entry
     ?>  ?=(%pub -.net)
     se-core(flag f, log log.net, notebook-state notebook-state)
   ::
@@ -925,23 +925,23 @@
   ::
   ::  +se-update: append update to log and broadcast to subscribers
   ++  se-update
-    |=  upd=u-notebook:notes
+    |=  upd=u-notebook:n
     ^+  se-core
     =/  ts=@da
       |-
-      ?~  existing=(get:log-on:notes log now.bowl)  now.bowl
+      ?~  existing=(get:log-on:n log now.bowl)  now.bowl
       $(now.bowl `@da`(add now.bowl ^~((div ~s1 (bex 16)))))
-    =.  log  (put:log-on:notes log [ts upd])
+    =.  log  (put:log-on:n log [ts upd])
     %-  give
     :+  %fact  ~[se-sub-path (weld se-area /stream)]
-    notes-response+!>(`response:notes`[%update flag [ts upd]])
+    notes-response+!>(`response:n`[%update flag [ts upd]])
   ::
   ::  +se-watch-sub: send initial snapshot to a new subscriber (with visibility)
   ++  se-watch-sub
     |=  who=ship
     ^+  se-core
     %-  give
-    [%fact ~ notes-response+!>(`response:notes`[%snapshot flag visibility.notebook-state notebook-state])]
+    [%fact ~ notes-response+!>(`response:n`[%snapshot flag visibility.notebook-state notebook-state])]
   ::
   ++  se-can-view
     |=  who=ship
@@ -952,7 +952,7 @@
   ++  se-can-edit
     |=  who=ship
     ^-  ?
-    =/  r=(unit role:notes)
+    =/  r=(unit role:n)
       (~(get by members.notebook-state) who)
     ?~  r  |
     ?|  =(u.r %owner)
@@ -962,44 +962,44 @@
   ++  se-is-owner
     |=  who=ship
     ^-  ?
-    =/  r=(unit role:notes)
+    =/  r=(unit role:n)
       (~(get by members.notebook-state) who)
     ?~  r  |
     =(u.r %owner)
   ::
   ++  se-visibility
-    ^-  visibility:notes
+    ^-  visibility:n
     visibility.notebook-state
   ::
   ::  +se-create-notebook: handle %create-notebook action
   ::  nid is +(next-id.state) — same value se-init used to build the flag slug;
   ::  state has not been modified between se-init and this call.
   ++  se-create-notebook
-    |=  act=action:notes
+    |=  act=action:n
     ?>  ?=(%create-notebook -.act)
     ^+  se-core
     =/  nid=@ud  +(next-id.state)
     =/  rfid=@ud  +(nid)
-    =/  nb=notebook:notes
+    =/  nb=notebook:n
       [nid title.act our.bowl now.bowl now.bowl our.bowl]
-    =/  nb-state=notebook-state:notes
+    =/  nb-state=notebook-state:n
       :*  nb
-          (~(put by *members:notes) our.bowl %owner)
+          (~(put by *members:n) our.bowl %owner)
           %private
-          (~(put by *(map @ud folder:notes)) rfid [rfid nid '/' ~ our.bowl now.bowl now.bowl our.bowl])
+          (~(put by *(map @ud folder:n)) rfid [rfid nid '/' ~ our.bowl now.bowl now.bowl our.bowl])
           ~
           ~
       ==
     =.  next-id.state  rfid
     =.  notebook-state  nb-state
     =.  books.state
-      (~(put by books.state) flag [[%pub *log:notes] notebook-state])
+      (~(put by books.state) flag [[%pub *log:n] notebook-state])
     =.  se-core  (emit notebooks-changed-card)
     (se-update [%created nb %private])
   ::
   ::  +se-poke: dispatch a c-notes command to the right handler
   ++  se-poke
-    |=  cmd=c-cmd:notes
+    |=  cmd=c-cmd:n
     ^+  se-core
     ?-  -.c-notebook.cmd
         %rename            (se-rename-notebook cmd)
@@ -1017,17 +1017,17 @@
     ==
   ::
   ++  se-rename-notebook
-    |=  cmd=c-cmd:notes
+    |=  cmd=c-cmd:n
     ?>  ?=(%rename -.c-notebook.cmd)
     ^+  se-core
     ?>  (se-is-owner src.bowl)
-    =/  nb=notebook:notes  notebook.notebook-state
+    =/  nb=notebook:n  notebook.notebook-state
     =.  nb  nb(title title.c-notebook.cmd, updated-at now.bowl, updated-by src.bowl)
     =.  notebook.notebook-state  nb
     (se-update [%updated nb])
   ::
   ++  se-delete-notebook
-    |=  cmd=c-cmd:notes
+    |=  cmd=c-cmd:n
     ?>  ?=(%delete -.c-notebook.cmd)
     ^+  se-core
     ?>  (se-is-owner src.bowl)
@@ -1035,14 +1035,14 @@
     =.  published.state
       %-  malt
       %+  skip  ~(tap by published.state)
-      |=  [k=[=flag:notes note-id=@ud] v=@t]
+      |=  [k=[=flag:n note-id=@ud] v=@t]
       =(flag.k flag)
     ::  history and visibility live in notebook-state, deleted via gone flag
     =.  se-core  (se-update [%deleted ~])
     se-core(gone &)
   ::
   ++  se-set-visibility
-    |=  cmd=c-cmd:notes
+    |=  cmd=c-cmd:n
     ?>  ?=(%visibility -.c-notebook.cmd)
     ^+  se-core
     ?>  (se-is-owner src.bowl)
@@ -1050,7 +1050,7 @@
     (se-update [%visibility visibility.c-notebook.cmd])
   ::
   ++  se-invite
-    |=  cmd=c-cmd:notes
+    |=  cmd=c-cmd:n
     ?>  ?=(%invite -.c-notebook.cmd)
     ^+  se-core
     ?>  (se-is-owner src.bowl)
@@ -1062,7 +1062,7 @@
     (se-update [%member-joined who %editor])
   ::
   ++  se-member-join
-    |=  cmd=c-cmd:notes
+    |=  cmd=c-cmd:n
     ?>  ?=(%member-join -.c-notebook.cmd)
     ^+  se-core
     ::  private notebooks reject joins from non-members
@@ -1075,7 +1075,7 @@
     (se-update [%member-joined src.bowl %editor])
   ::
   ++  se-member-leave
-    |=  cmd=c-cmd:notes
+    |=  cmd=c-cmd:n
     ?>  ?=(%member-leave -.c-notebook.cmd)
     ^+  se-core
     =.  members.notebook-state
@@ -1083,11 +1083,11 @@
     (se-update [%member-left src.bowl])
   ::
   ++  se-dispatch-folder
-    |=  cmd=c-cmd:notes
+    |=  cmd=c-cmd:n
     ?>  ?=(%folder -.c-notebook.cmd)
     ^+  se-core
     =/  fid=@ud  id.c-notebook.cmd
-    =/  fld-act=a-folder:notes  a-folder.c-notebook.cmd
+    =/  fld-act=a-folder:n  a-folder.c-notebook.cmd
     ?-  -.fld-act
       %rename  (se-rename-folder cmd)
       %move    (se-move-folder cmd)
@@ -1095,10 +1095,10 @@
     ==
   ::
   ++  se-dispatch-note
-    |=  cmd=c-cmd:notes
+    |=  cmd=c-cmd:n
     ?>  ?=(%note -.c-notebook.cmd)
     ^+  se-core
-    =/  n-act=a-note:notes  a-note.c-notebook.cmd
+    =/  n-act=a-note:n  a-note.c-notebook.cmd
     ?-  -.n-act
       %rename   (se-rename-note cmd)
       %move     (se-move-note cmd)
@@ -1110,7 +1110,7 @@
     ==
   ::
   ++  se-create-folder
-    |=  cmd=c-cmd:notes
+    |=  cmd=c-cmd:n
     ?>  ?=(%create-folder -.c-notebook.cmd)
     ^+  se-core
     ?>  (se-can-edit src.bowl)
@@ -1118,20 +1118,20 @@
     =/  fid=@ud  +(next-id.state)
     =.  next-id.state  fid
     =/  nid=@ud  id.notebook.notebook-state
-    =/  nf=folder:notes
+    =/  nf=folder:n
       [fid nid name.c-notebook.cmd parent src.bowl now.bowl now.bowl src.bowl]
     =.  folders.notebook-state
       (~(put by folders.notebook-state) fid nf)
     (se-update [%folder fid [%created nf]])
   ::
   ++  se-rename-folder
-    |=  cmd=c-cmd:notes
+    |=  cmd=c-cmd:n
     ?>  ?=(%folder -.c-notebook.cmd)
     ?>  ?=(%rename -.a-folder.c-notebook.cmd)
     ^+  se-core
     ?>  (se-can-edit src.bowl)
     =/  fid=@ud  id.c-notebook.cmd
-    =/  fld=folder:notes
+    =/  fld=folder:n
       (~(got by folders.notebook-state) fid)
     =.  fld  fld(name name.a-folder.c-notebook.cmd, updated-at now.bowl, updated-by src.bowl)
     =.  folders.notebook-state
@@ -1139,14 +1139,14 @@
     (se-update [%folder fid [%updated fld]])
   ::
   ++  se-move-folder
-    |=  cmd=c-cmd:notes
+    |=  cmd=c-cmd:n
     ?>  ?=(%folder -.c-notebook.cmd)
     ?>  ?=(%move -.a-folder.c-notebook.cmd)
     ^+  se-core
     ?>  (se-can-edit src.bowl)
     =/  fid=@ud  id.c-notebook.cmd
     =/  new-parent=@ud  new-parent.a-folder.c-notebook.cmd
-    =/  fld=folder:notes
+    =/  fld=folder:n
       (~(got by folders.notebook-state) fid)
     =/  subtree=(set @ud)
       (se-subtree-folder-ids fid)
@@ -1157,14 +1157,14 @@
     (se-update [%folder fid [%updated fld]])
   ::
   ++  se-delete-folder
-    |=  cmd=c-cmd:notes
+    |=  cmd=c-cmd:n
     ?>  ?=(%folder -.c-notebook.cmd)
     ?>  ?=(%delete -.a-folder.c-notebook.cmd)
     ^+  se-core
     ?>  (se-can-edit src.bowl)
     =/  fid=@ud  id.c-notebook.cmd
     =/  recursive=?  recursive.a-folder.c-notebook.cmd
-    =/  fld=folder:notes
+    =/  fld=folder:n
       (~(got by folders.notebook-state) fid)
     ?>  ?=(^ parent-folder-id.fld)
     ?:  recursive
@@ -1185,7 +1185,7 @@
     =/  children=(list @ud)
       (se-folder-children-ids fid)
     ?>  =(~ children)
-    =/  child-notes=(list note:notes)
+    =/  child-notes=(list note:n)
       (se-notes-in-folder fid)
     ?>  =(~ child-notes)
     =.  folders.notebook-state
@@ -1193,17 +1193,17 @@
     (se-update [%folder fid [%deleted ~]])
   ::
   ++  se-create-note
-    |=  cmd=c-cmd:notes
+    |=  cmd=c-cmd:n
     ?>  ?=(%create-note -.c-notebook.cmd)
     ^+  se-core
     ?>  (se-can-edit src.bowl)
     =/  nid-nb=@ud  id.notebook.notebook-state
     =/  fid=@ud  folder.c-notebook.cmd
-    =/  fld=folder:notes
+    =/  fld=folder:n
       (~(got by folders.notebook-state) fid)
     =/  nid=@ud  +(next-id.state)
     =.  next-id.state  nid
-    =/  nt=note:notes
+    =/  nt=note:n
       :*  nid
           nid-nb
           fid
@@ -1221,13 +1221,13 @@
     (se-update [%note nid [%created nt]])
   ::
   ++  se-rename-note
-    |=  cmd=c-cmd:notes
+    |=  cmd=c-cmd:n
     ?>  ?=(%note -.c-notebook.cmd)
     ?>  ?=(%rename -.a-note.c-notebook.cmd)
     ^+  se-core
     ?>  (se-can-edit src.bowl)
     =/  nid=@ud  id.c-notebook.cmd
-    =/  nt=note:notes  (~(got by notes.notebook-state) nid)
+    =/  nt=note:n  (~(got by notes.notebook-state) nid)
     ::  Title changes do NOT bump revision. The revision counter tracks
     ::  body-md only — that's what optimistic concurrency on update-note
     ::  cares about. Bumping rev on rename silently desynced auto-save
@@ -1244,13 +1244,13 @@
     (se-update [%note nid [%updated nt]])
   ::
   ++  se-move-note
-    |=  cmd=c-cmd:notes
+    |=  cmd=c-cmd:n
     ?>  ?=(%note -.c-notebook.cmd)
     ?>  ?=(%move -.a-note.c-notebook.cmd)
     ^+  se-core
     ?>  (se-can-edit src.bowl)
     =/  nid=@ud  id.c-notebook.cmd
-    =/  nt=note:notes  (~(got by notes.notebook-state) nid)
+    =/  nt=note:n  (~(got by notes.notebook-state) nid)
     =/  new-fid=@ud  folder.a-note.c-notebook.cmd
     ::  Move does NOT bump revision; same reasoning as rename — body-md
     ::  is the only field that drives optimistic concurrency.
@@ -1265,25 +1265,25 @@
     (se-update [%note nid [%updated nt]])
   ::
   ++  se-delete-note
-    |=  cmd=c-cmd:notes
+    |=  cmd=c-cmd:n
     ?>  ?=(%note -.c-notebook.cmd)
     ?>  ?=(%delete -.a-note.c-notebook.cmd)
     ^+  se-core
     ?>  (se-can-edit src.bowl)
     =/  nid=@ud  id.c-notebook.cmd
-    =/  nt=note:notes
+    =/  nt=note:n
       (~(got by notes.notebook-state) nid)
     =.  notes.notebook-state
       (~(del by notes.notebook-state) nid)
     (se-update [%note nid [%deleted ~]])
   ::
   ++  se-update-note
-    |=  cmd=c-cmd:notes
+    |=  cmd=c-cmd:n
     ?>  ?=(%note -.c-notebook.cmd)
     ?>  ?=(%update -.a-note.c-notebook.cmd)
     ^+  se-core
     =/  nid=@ud  id.c-notebook.cmd
-    =/  nt=note:notes
+    =/  nt=note:n
       (~(got by notes.notebook-state) nid)
     ?>  (se-can-edit src.bowl)
     ::  strict optimistic concurrency check (no force-update sentinel)
@@ -1293,14 +1293,14 @@
     ?:  =(body-md.nt body.a-note.c-notebook.cmd)
       se-core
     ::  archive the prior revision into per-notebook history
-    =/  prior=note-revision:notes
+    =/  prior=note-revision:n
       :*  rev=revision.nt
           at=now.bowl
           author=src.bowl
           title=title.nt
           body-md=body-md.nt
       ==
-    =/  existing=(list note-revision:notes)
+    =/  existing=(list note-revision:n)
       (fall (~(get by history.notebook-state) nid) ~)
     =.  history.notebook-state
       (~(put by history.notebook-state) nid [prior existing])
@@ -1321,19 +1321,19 @@
   ::  +se-restore-note: revert to a prior archived revision
   ::  This is simply an update with the archived body, respecting current revision.
   ++  se-restore-note
-    |=  cmd=c-cmd:notes
+    |=  cmd=c-cmd:n
     ?>  ?=(%note -.c-notebook.cmd)
     ?>  ?=(%restore -.a-note.c-notebook.cmd)
     ^+  se-core
     =/  nid=@ud  id.c-notebook.cmd
     =/  target-rev=@ud  rev.a-note.c-notebook.cmd
-    =/  nt=note:notes
+    =/  nt=note:n
       (~(got by notes.notebook-state) nid)
     ?>  (se-can-edit src.bowl)
     ::  find the archived revision in per-notebook history
-    =/  revs=(list note-revision:notes)
+    =/  revs=(list note-revision:n)
       (fall (~(get by history.notebook-state) nid) ~)
-    =/  found=(unit note-revision:notes)
+    =/  found=(unit note-revision:n)
       |-
       ?~  revs  ~
       ?:  =(rev.i.revs target-rev)
@@ -1341,10 +1341,10 @@
       $(revs t.revs)
     ?>  ?=(^ found)
     ::  apply as a normal update with current revision as expected
-    (se-update-note `c-cmd:notes`[flag [%note nid [%update body-md.u.found revision.nt]]])
+    (se-update-note `c-cmd:n`[flag [%note nid [%update body-md.u.found revision.nt]]])
   ::
   ++  se-batch-import
-    |=  cmd=c-cmd:notes
+    |=  cmd=c-cmd:n
     ?>  ?=(%batch-import -.c-notebook.cmd)
     ^+  se-core
     ?>  (se-can-edit src.bowl)
@@ -1355,7 +1355,7 @@
     ?~  items  se-core
     =/  nid=@ud  +(next-id.state)
     =.  next-id.state  nid
-    =/  nt=note:notes
+    =/  nt=note:n
       :*  nid
           nid-nb
           fid
@@ -1374,13 +1374,13 @@
     $(items t.items, se-core se-core)
   ::
   ++  se-batch-import-tree
-    |=  cmd=c-cmd:notes
+    |=  cmd=c-cmd:n
     ?>  ?=(%batch-import-tree -.c-notebook.cmd)
     ^+  se-core
     ?>  (se-can-edit src.bowl)
-    =/  items=(list import-node:notes)  tree.c-notebook.cmd
+    =/  items=(list import-node:n)  tree.c-notebook.cmd
     =/  nid-nb=@ud  id.notebook.notebook-state
-    =|  stack=(list [remaining=(list import-node:notes) folder-id=@ud])
+    =|  stack=(list [remaining=(list import-node:n) folder-id=@ud])
     =/  fid=@ud  parent.c-notebook.cmd
     |-  ^+  se-core
     ?~  items
@@ -1391,7 +1391,7 @@
         %note
       =/  nid=@ud  +(next-id.state)
       =.  next-id.state  nid
-      =/  nt=note:notes
+      =/  nt=note:n
         :*  nid
             nid-nb
             fid
@@ -1412,7 +1412,7 @@
         %folder
       =/  new-fid=@ud  +(next-id.state)
       =.  next-id.state  new-fid
-      =/  nf=folder:notes
+      =/  nf=folder:n
         [new-fid nid-nb name.i.items `fid src.bowl now.bowl now.bowl src.bowl]
       =.  folders.notebook-state
         (~(put by folders.notebook-state) new-fid nf)
@@ -1425,7 +1425,7 @@
     |=  folder-id=@ud
     ^-  (list @ud)
     %+  murn  ~(tap by folders.notebook-state)
-    |=  [fid=@ud fld=folder:notes]
+    |=  [fid=@ud fld=folder:n]
     ?~  parent-folder-id.fld  ~
     ?:  =(u.parent-folder-id.fld folder-id)
       `fid
@@ -1449,16 +1449,16 @@
     ^-  (set @ud)
     %-  silt
     %+  murn  ~(tap by notes.notebook-state)
-    |=  [nid=@ud nt=note:notes]
+    |=  [nid=@ud nt=note:n]
     ?:  (~(has in fids) folder-id.nt)
       `nid
     ~
   ::
   ++  se-notes-in-folder
     |=  folder-id=@ud
-    ^-  (list note:notes)
+    ^-  (list note:n)
     %+  murn  ~(tap by notes.notebook-state)
-    |=  [nid=@ud nt=note:notes]
+    |=  [nid=@ud nt=note:n]
     ?:  =(folder-id.nt folder-id)
       `nt
     ~
@@ -1467,17 +1467,17 @@
 ::  ====  no-core: subscriber/client core  ====
 ::
 ++  no-core
-  |_  [=flag:notes =net:notes =notebook-state:notes gone=_|]
+  |_  [=flag:n =net:n =notebook-state:n gone=_|]
   ++  no-core  .
   ++  emit  |=(=card no-core(cor cor(cards [card cards])))
   ++  give  |=(=gift:agent:gall (emit %give gift))
   ::
   ++  no-abed
-    |=  f=flag:notes
+    |=  f=flag:n
     ^+  no-core
     ?~  entry=(~(get by books.state) f)
       ~|(no-abed-not-found+f !!)
-    =/  [=net:notes =notebook-state:notes]  u.entry
+    =/  [=net:n =notebook-state:n]  u.entry
     ?>  ?=(%sub -.net)
     no-core(flag f, net net, notebook-state notebook-state)
   ::
@@ -1500,10 +1500,10 @@
   ::
   ::  +no-action: convert local action to c-notes and send poke to host
   ++  no-action
-    |=  act=action:notes
+    |=  act=action:n
     ^+  no-core
     ?>  ?=(%notebook -.act)
-    =/  cmd=command:notes
+    =/  cmd=command:n
       [%notebook flag.act (a-notebook-to-c-notebook a-notebook.act)]
     %-  emit
     :*  %pass
@@ -1531,7 +1531,7 @@
     ^+  no-core
     ?+  -.sign  no-core
         %fact
-      =/  =response:notes  !<(response:notes q.cage.sign)
+      =/  =response:n  !<(response:n q.cage.sign)
       (no-response response)
     ::
         %kick
@@ -1553,7 +1553,7 @@
   ::
   ::  +no-response: apply an update from the host to local state
   ++  no-response
-    |=  =response:notes
+    |=  =response:n
     ^+  no-core
     ?-  -.response
         %snapshot
@@ -1572,9 +1572,9 @@
   ::
   ::  +no-apply-update: apply a single u-notebook update to local state
   ++  no-apply-update
-    |=  [=flag:notes upd=update:notes]
+    |=  [=flag:n upd=update:n]
     ^+  no-core
-    =/  u-nb=u-notebook:notes  u-notebook.upd
+    =/  u-nb=u-notebook:n  u-notebook.upd
     ?-  -.u-nb
         %created
       =.  notebook.notebook-state  notebook.u-nb
@@ -1616,7 +1616,7 @@
     ==
   ::
   ++  no-apply-folder-update
-    |=  [fid=@ud upd=u-folder:notes]
+    |=  [fid=@ud upd=u-folder:n]
     ^+  no-core
     ?-  -.upd
         %created
@@ -1634,7 +1634,7 @@
     ==
   ::
   ++  no-apply-note-update
-    |=  [nid=@ud upd=u-note:notes]
+    |=  [nid=@ud upd=u-note:n]
     ^+  no-core
     ?-  -.upd
         %created
@@ -1655,7 +1655,7 @@
       no-core
         %history-archived
       ::  append archived revision to local per-notebook history cache
-      =/  existing=(list note-revision:notes)
+      =/  existing=(list note-revision:n)
         (fall (~(get by history.notebook-state) nid) ~)
       =.  history.notebook-state
         (~(put by history.notebook-state) nid [note-revision.upd existing])

@@ -1,10 +1,10 @@
-/-  notes
+/-  n=notes
 /+  notes-json
-|_  =action:notes
+|_  =action:n
 ++  grad  %noun
 ++  grab
   |%
-  ++  noun  action:notes
+  ++  noun  action:n
   ++  json  action:dejs:notes-json
   --
 ++  grow
