@@ -78,7 +78,7 @@
 ::  helper core
 ::
 |_  [=bowl:gall cards=(list card)]
-++  dummy  'v0.10.0-fix-join-modal-cache-race'
+++  dummy  'fix-join-embed-synthesize-v3'
 ++  abet  [(flop cards) state]
 ++  cor   .
 ++  emit  |=(=card cor(cards [card cards]))
@@ -786,6 +786,7 @@
     :~  ['host' s+(scot %p ship.flag)]
         ['flagName' s+name.flag]
         ['notebook' (notebook:enjs:notes-json notebook.notebook-state.u.entry)]
+        ['visibility' s+(scot %tas visibility.notebook-state.u.entry)]
     ==
     ::  /x/v0/folders/<ship>/<name>
       [%x %v0 %folders ship=@ name=@ ~]

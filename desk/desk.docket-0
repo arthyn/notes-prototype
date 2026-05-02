@@ -1,10 +1,10 @@
 :~
   title+'Notes'
-  info+'Collaborative markdown notebooks — alpha v0.10.0'
+  info+'Collaborative markdown notebooks — alpha v0.10.1'
   color+0x7c.6af7
   site+/notes
   base+'notes'
-  version+[0 10 0]
+  version+[0 10 1]
   website+'https://github.com/arthyn/notes-prototype'
   license+'MIT'
 ==
