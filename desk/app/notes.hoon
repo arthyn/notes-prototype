@@ -171,7 +171,7 @@
     =/  new-books=(map flag-v9:n [=net:n =notebook-state-v8:n])
       %-  ~(run by books.s)
       |=  [net=net-v0:n old-nbs=notebook-state-v0:n]
-      =/  notebook=notebook:n
+      =/  =notebook:n
         :*  id.notebook.old-nbs  title.notebook.old-nbs
             created-by.notebook.old-nbs  created-at.notebook.old-nbs
             updated-at.notebook.old-nbs  created-by.notebook.old-nbs
@@ -228,19 +228,19 @@
       %-  malt
       %+  turn  ~(tap by books.s)
       |=  [f=flag-v9:n entry=[=net:n =notebook-state:n]]
-      =/  flag=flag:n  (~(got by xlat) f)
+      =/  =flag:n  (~(got by xlat) f)
       [flag entry]
     =/  new-pub=(map [=flag:n note-id=@ud] @t)
       %-  malt
       %+  turn  ~(tap by published.s)
       |=  [[f=flag-v9:n nid=@ud] html=@t]
-      =/  flag=flag:n  (fall (~(get by xlat) f) [ship.f `@tas`name.f])
+      =/  =flag:n  (fall (~(get by xlat) f) [ship.f `@tas`name.f])
       [[flag nid] html]
     =/  new-invites=(map flag:n invite-info:n)
       %-  malt
       %+  turn  ~(tap by invites.s)
       |=  [f=flag-v9:n info=invite-info:n]
-      =/  flag=flag:n  (fall (~(get by xlat) f) [ship.f `@tas`name.f])
+      =/  =flag:n  (fall (~(get by xlat) f) [ship.f `@tas`name.f])
       [flag info]
     [%10 new-books next-id.s new-pub new-invites]
   --
@@ -325,7 +325,7 @@
     ?<  =(our.bowl ship.flag)
     ?<  (~(has by books.state) flag)
     =/  placeholder-net=net:n  [%sub *@da |]
-    =/  notebook=notebook:n
+    =/  =notebook:n
       [0 '' ship.flag *@da *@da ship.flag]
     =/  placeholder-nb-state=notebook-state:n
       [notebook ~ %private ~ ~ ~]
@@ -810,7 +810,7 @@
     ^+  se-core
     =/  nid=@ud  +(next-id.state)
     =/  rfid=@ud  +(nid)
-    =/  notebook=notebook:n
+    =/  =notebook:n
       [nid title.act our.bowl now.bowl now.bowl our.bowl]
     =/  nb-state=notebook-state:n
       :*  notebook
@@ -851,7 +851,7 @@
     ?>  ?=(%rename -.c-notebook.cmd)
     ^+  se-core
     ?>  (se-is-owner src.bowl)
-    =/  notebook=notebook:n  notebook.notebook-state
+    =/  =notebook:n  notebook.notebook-state
     =.  notebook  notebook(title title.c-notebook.cmd, updated-at now.bowl, updated-by src.bowl)
     =.  notebook.notebook-state  notebook
     (se-update [%updated notebook])
@@ -943,7 +943,7 @@
     ?>  (se-can-edit src.bowl)
     =/  fid=@ud  +(next-id.state)
     =.  next-id.state  fid
-    =/  folder=folder:n
+    =/  =folder:n
       [fid id.notebook.notebook-state name.c-notebook.cmd parent.c-notebook.cmd src.bowl now.bowl now.bowl src.bowl]
     =.  folders.notebook-state
       (~(put by folders.notebook-state) fid folder)
@@ -1026,7 +1026,7 @@
       (~(got by folders.notebook-state) fid)
     =/  nid=@ud  +(next-id.state)
     =.  next-id.state  nid
-    =/  note=note:n
+    =/  =note:n
       :*  nid
           id.notebook.notebook-state
           fid
@@ -1050,7 +1050,7 @@
     ^+  se-core
     ?>  (se-can-edit src.bowl)
     =*  nid  id.c-notebook.cmd
-    =/  note=note:n  (~(got by notes.notebook-state) nid)
+    =/  =note:n  (~(got by notes.notebook-state) nid)
     ::  Title changes do NOT bump revision. The revision counter tracks
     ::  body-md only — that's what optimistic concurrency on update-note
     ::  cares about. Bumping rev on rename silently desynced auto-save
@@ -1073,7 +1073,7 @@
     ^+  se-core
     ?>  (se-can-edit src.bowl)
     =*  nid  id.c-notebook.cmd
-    =/  note=note:n  (~(got by notes.notebook-state) nid)
+    =/  =note:n  (~(got by notes.notebook-state) nid)
     ::  Move does NOT bump revision; same reasoning as rename — body-md
     ::  is the only field that drives optimistic concurrency.
     =.  note
@@ -1093,7 +1093,7 @@
     ^+  se-core
     ?>  (se-can-edit src.bowl)
     =*  nid  id.c-notebook.cmd
-    =/  note=note:n
+    =/  =note:n
       (~(got by notes.notebook-state) nid)
     =.  notes.notebook-state
       (~(del by notes.notebook-state) nid)
@@ -1105,7 +1105,7 @@
     ?>  ?=(%update -.a-note.c-notebook.cmd)
     ^+  se-core
     =*  nid  id.c-notebook.cmd
-    =/  note=note:n
+    =/  =note:n
       (~(got by notes.notebook-state) nid)
     ?>  (se-can-edit src.bowl)
     ::  strict optimistic concurrency check (no force-update sentinel)
@@ -1148,7 +1148,7 @@
     ?>  ?=(%restore -.a-note.c-notebook.cmd)
     ^+  se-core
     =*  nid  id.c-notebook.cmd
-    =/  note=note:n
+    =/  =note:n
       (~(got by notes.notebook-state) nid)
     ?>  (se-can-edit src.bowl)
     ::  find the archived revision in per-notebook history
@@ -1174,7 +1174,7 @@
     ?~  items  se-core
     =/  nid=@ud  +(next-id.state)
     =.  next-id.state  nid
-    =/  note=note:n
+    =/  =note:n
       :*  nid
           id.notebook.notebook-state
           folder.c-notebook.cmd
@@ -1210,7 +1210,7 @@
         %note
       =/  nid=@ud  +(next-id.state)
       =.  next-id.state  nid
-      =/  note=note:n
+      =/  =note:n
         :*  nid
             nid-nb
             fid
@@ -1231,7 +1231,7 @@
         %folder
       =/  new-fid=@ud  +(next-id.state)
       =.  next-id.state  new-fid
-      =/  folder=folder:n
+      =/  =folder:n
         [new-fid nid-nb name.i.items `fid src.bowl now.bowl now.bowl src.bowl]
       =.  folders.notebook-state
         (~(put by folders.notebook-state) new-fid folder)
@@ -1268,7 +1268,7 @@
     ^-  (set @ud)
     %-  silt
     %+  murn  ~(tap by notes.notebook-state)
-    |=  [nid=@ud note=note:n]
+    |=  [nid=@ud =note:n]
     ?:  (~(has in fids) folder-id.note)
       `nid
     ~
@@ -1277,7 +1277,7 @@
     |=  folder-id=@ud
     ^-  (list note:n)
     %+  murn  ~(tap by notes.notebook-state)
-    |=  [nid=@ud note=note:n]
+    |=  [nid=@ud =note:n]
     ?:  =(folder-id.note folder-id)
       `note
     ~
