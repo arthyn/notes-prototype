@@ -806,8 +806,8 @@
   ::  state has not been modified between se-init and this call.
   ++  se-create-notebook
     |=  act=action:n
-    ?>  ?=(%create-notebook -.act)
     ^+  se-core
+    ?>  ?=(%create-notebook -.act)
     =/  nid=@ud  +(next-id.state)
     =/  rfid=@ud  +(nid)
     =/  =notebook:n
@@ -848,18 +848,21 @@
   ::
   ++  se-rename-notebook
     |=  cmd=c-cmd:n
-    ?>  ?=(%rename -.c-notebook.cmd)
     ^+  se-core
+    ?>  ?=(%rename -.c-notebook.cmd)
     ?>  (se-is-owner src.bowl)
-    =/  =notebook:n  notebook.notebook-state
-    =.  notebook  notebook(title title.c-notebook.cmd, updated-at now.bowl, updated-by src.bowl)
-    =.  notebook.notebook-state  notebook
-    (se-update [%updated notebook])
+    =.  notebook.notebook-state
+      %_  notebook.notebook-state
+        title       title.c-notebook.cmd
+        updated-at  now.bowl
+        updated-by  src.bowl
+      ==
+    (se-update [%updated notebook.notebook-state])
   ::
   ++  se-delete-notebook
     |=  cmd=c-cmd:n
-    ?>  ?=(%delete -.c-notebook.cmd)
     ^+  se-core
+    ?>  ?=(%delete -.c-notebook.cmd)
     ?>  (se-is-owner src.bowl)
     ::  clean up published entries for this notebook
     =.  published.state
@@ -873,16 +876,16 @@
   ::
   ++  se-set-visibility
     |=  cmd=c-cmd:n
-    ?>  ?=(%visibility -.c-notebook.cmd)
     ^+  se-core
+    ?>  ?=(%visibility -.c-notebook.cmd)
     ?>  (se-is-owner src.bowl)
     =.  visibility.notebook-state  visibility.c-notebook.cmd
     (se-update [%visibility visibility.c-notebook.cmd])
   ::
   ++  se-invite
     |=  cmd=c-cmd:n
-    ?>  ?=(%invite -.c-notebook.cmd)
     ^+  se-core
+    ?>  ?=(%invite -.c-notebook.cmd)
     ?>  (se-is-owner src.bowl)
     =*  who  who.c-notebook.cmd
     ?:  (~(has by members.notebook-state) who)
@@ -893,8 +896,8 @@
   ::
   ++  se-member-join
     |=  cmd=c-cmd:n
-    ?>  ?=(%member-join -.c-notebook.cmd)
     ^+  se-core
+    ?>  ?=(%member-join -.c-notebook.cmd)
     ::  private notebooks reject joins from non-members
     ?:  ?&  =(%private se-visibility)
             !(se-can-view src.bowl)
@@ -906,16 +909,16 @@
   ::
   ++  se-member-leave
     |=  cmd=c-cmd:n
-    ?>  ?=(%member-leave -.c-notebook.cmd)
     ^+  se-core
+    ?>  ?=(%member-leave -.c-notebook.cmd)
     =.  members.notebook-state
       (~(del by members.notebook-state) src.bowl)
     (se-update [%member-left src.bowl])
   ::
   ++  se-dispatch-folder
     |=  cmd=c-cmd:n
-    ?>  ?=(%folder -.c-notebook.cmd)
     ^+  se-core
+    ?>  ?=(%folder -.c-notebook.cmd)
     ?-  -.a-folder.c-notebook.cmd
       %rename  (se-rename-folder cmd)
       %move    (se-move-folder cmd)
@@ -924,8 +927,8 @@
   ::
   ++  se-dispatch-note
     |=  cmd=c-cmd:n
-    ?>  ?=(%note -.c-notebook.cmd)
     ^+  se-core
+    ?>  ?=(%note -.c-notebook.cmd)
     ?-  -.a-note.c-notebook.cmd
       %rename   (se-rename-note cmd)
       %move     (se-move-note cmd)
@@ -938,8 +941,8 @@
   ::
   ++  se-create-folder
     |=  cmd=c-cmd:n
-    ?>  ?=(%create-folder -.c-notebook.cmd)
     ^+  se-core
+    ?>  ?=(%create-folder -.c-notebook.cmd)
     ?>  (se-can-edit src.bowl)
     =/  fid=@ud  +(next-id.state)
     =.  next-id.state  fid
@@ -951,9 +954,9 @@
   ::
   ++  se-rename-folder
     |=  cmd=c-cmd:n
+    ^+  se-core
     ?>  ?=(%folder -.c-notebook.cmd)
     ?>  ?=(%rename -.a-folder.c-notebook.cmd)
-    ^+  se-core
     ?>  (se-can-edit src.bowl)
     =*  fid  id.c-notebook.cmd
     =/  fld=folder:n
@@ -965,9 +968,9 @@
   ::
   ++  se-move-folder
     |=  cmd=c-cmd:n
+    ^+  se-core
     ?>  ?=(%folder -.c-notebook.cmd)
     ?>  ?=(%move -.a-folder.c-notebook.cmd)
-    ^+  se-core
     ?>  (se-can-edit src.bowl)
     =*  fid  id.c-notebook.cmd
     =*  new-parent  new-parent.a-folder.c-notebook.cmd
@@ -983,9 +986,9 @@
   ::
   ++  se-delete-folder
     |=  cmd=c-cmd:n
+    ^+  se-core
     ?>  ?=(%folder -.c-notebook.cmd)
     ?>  ?=(%delete -.a-folder.c-notebook.cmd)
-    ^+  se-core
     ?>  (se-can-edit src.bowl)
     =*  fid  id.c-notebook.cmd
     =/  fld=folder:n
@@ -1018,8 +1021,8 @@
   ::
   ++  se-create-note
     |=  cmd=c-cmd:n
-    ?>  ?=(%create-note -.c-notebook.cmd)
     ^+  se-core
+    ?>  ?=(%create-note -.c-notebook.cmd)
     ?>  (se-can-edit src.bowl)
     =*  fid  folder.c-notebook.cmd
     =/  fld=folder:n
@@ -1045,9 +1048,9 @@
   ::
   ++  se-rename-note
     |=  cmd=c-cmd:n
+    ^+  se-core
     ?>  ?=(%note -.c-notebook.cmd)
     ?>  ?=(%rename -.a-note.c-notebook.cmd)
-    ^+  se-core
     ?>  (se-can-edit src.bowl)
     =*  nid  id.c-notebook.cmd
     =/  =note:n  (~(got by notes.notebook-state) nid)
@@ -1068,9 +1071,9 @@
   ::
   ++  se-move-note
     |=  cmd=c-cmd:n
+    ^+  se-core
     ?>  ?=(%note -.c-notebook.cmd)
     ?>  ?=(%move -.a-note.c-notebook.cmd)
-    ^+  se-core
     ?>  (se-can-edit src.bowl)
     =*  nid  id.c-notebook.cmd
     =/  =note:n  (~(got by notes.notebook-state) nid)
@@ -1088,9 +1091,9 @@
   ::
   ++  se-delete-note
     |=  cmd=c-cmd:n
+    ^+  se-core
     ?>  ?=(%note -.c-notebook.cmd)
     ?>  ?=(%delete -.a-note.c-notebook.cmd)
-    ^+  se-core
     ?>  (se-can-edit src.bowl)
     =*  nid  id.c-notebook.cmd
     =/  =note:n
@@ -1101,9 +1104,9 @@
   ::
   ++  se-update-note
     |=  cmd=c-cmd:n
+    ^+  se-core
     ?>  ?=(%note -.c-notebook.cmd)
     ?>  ?=(%update -.a-note.c-notebook.cmd)
-    ^+  se-core
     =*  nid  id.c-notebook.cmd
     =/  =note:n
       (~(got by notes.notebook-state) nid)
@@ -1144,9 +1147,9 @@
   ::  This is simply an update with the archived body, respecting current revision.
   ++  se-restore-note
     |=  cmd=c-cmd:n
+    ^+  se-core
     ?>  ?=(%note -.c-notebook.cmd)
     ?>  ?=(%restore -.a-note.c-notebook.cmd)
-    ^+  se-core
     =*  nid  id.c-notebook.cmd
     =/  =note:n
       (~(got by notes.notebook-state) nid)
@@ -1166,8 +1169,8 @@
   ::
   ++  se-batch-import
     |=  cmd=c-cmd:n
-    ?>  ?=(%batch-import -.c-notebook.cmd)
     ^+  se-core
+    ?>  ?=(%batch-import -.c-notebook.cmd)
     ?>  (se-can-edit src.bowl)
     =/  items=(list [title=@t body=@t])  notes.c-notebook.cmd
     |-  ^+  se-core
@@ -1194,8 +1197,8 @@
   ::
   ++  se-batch-import-tree
     |=  cmd=c-cmd:n
-    ?>  ?=(%batch-import-tree -.c-notebook.cmd)
     ^+  se-core
+    ?>  ?=(%batch-import-tree -.c-notebook.cmd)
     ?>  (se-can-edit src.bowl)
     =/  items=(list import-node:n)  tree.c-notebook.cmd
     =*  nid-nb  id.notebook.notebook-state
