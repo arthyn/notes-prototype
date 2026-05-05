@@ -257,8 +257,9 @@
 ::  $invite-record: one item from /v0/invites list
 +$  invite-record     [=flag =invite-info]
 ::
-::  $published-record: one item from /v0/published list
-+$  published-record  [=flag note-id=@ud html=@t]
+::  $published-record: one item from /v0/published list — metadata only.
+::  HTML body is served via /notes/pub/~host/name/note-id, not this list.
++$  published-record  [=flag note-id=@ud]
 ::
 ::  Type aliases
 +$  action    a-notes

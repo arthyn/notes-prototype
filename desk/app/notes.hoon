@@ -493,8 +493,8 @@
       [%x %v0 %published ~]
     =/  pub-records=(list published-record:n)
       %+  turn  ~(tap by published.state)
-      |=  [[=flag:n note-id=@ud] html=@t]
-      [flag note-id html]
+      |=  [[=flag:n note-id=@ud] *]
+      [flag note-id]
     ``notes-published+!>(pub-records)
     ::  /x/v0/invites — pending invites we've received
       [%x %v0 %invites ~]
