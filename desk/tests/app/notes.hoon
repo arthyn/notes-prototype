@@ -583,6 +583,35 @@
   ;<  pub2=cage  b  (got-peek /x/v0/published)
   (ex-mark pub2 %notes-published)
 ::
+::  ====  test-publish-note-rejects-non-host  ====
+::  ~zod creates a notebook + note. ~bus tries to publish a note keyed by
+::  ~zod's flag — must crash because publish is host-only.
+++  test-publish-note-rejects-non-host
+  %-  eval-mare
+  =/  m  (mare ,~)
+  =*  b  bind:m
+  ^-  form:m
+  ;<  ~  b  init-zod
+  ;<  =bowl:gall  b  get-bowl
+  ;<  *  b  (poke-a [%create-notebook 'NB'])
+  =/  f=flag:n  (nb-flag our.bowl 'NB' 1)
+  ;<  *  b  (poke-a [%notebook f [%create-note 2 'Article' '# Hello']])
+  ;<  *  b  (set-src ~bus)
+  (ex-fail (poke-a [%notebook f [%note 3 [%publish '<h1>Bad</h1>']]]))
+::
+::  ====  test-publish-note-rejects-missing-note  ====
+::  Publishing a non-existent note id must crash.
+++  test-publish-note-rejects-missing-note
+  %-  eval-mare
+  =/  m  (mare ,~)
+  =*  b  bind:m
+  ^-  form:m
+  ;<  ~  b  init-zod
+  ;<  =bowl:gall  b  get-bowl
+  ;<  *  b  (poke-a [%create-notebook 'NB'])
+  =/  f=flag:n  (nb-flag our.bowl 'NB' 1)
+  (ex-fail (poke-a [%notebook f [%note 999 [%publish '<h1>Ghost</h1>']]]))
+::
 ::  ====  test-create-and-update-archives-prior-rev  ====
 ::  After a single update, history has exactly one entry containing
 ::  the prior body. The archive's rev is the rev the snapshot was at (0).

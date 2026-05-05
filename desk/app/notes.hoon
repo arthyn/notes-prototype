@@ -285,13 +285,8 @@
           ::  default: send command to host
         no-abet:(no-action:(no-abed:no-core flag) act)
       ::
-          %publish
-        =.  published.state  (~(put by published.state) [flag id.a-notebook.act] html.n-act)
-        cor
-      ::
-          %unpublish
-        =.  published.state  (~(del by published.state) [flag id.a-notebook.act])
-        cor
+          %publish    (publish-note flag id.a-notebook.act html.n-act)
+          %unpublish  (unpublish-note flag id.a-notebook.act)
       ==
     ==
   ::
@@ -393,6 +388,32 @@
     ?.  (~(has by invites.state) flag)  cor
     =.  invites.state  (~(del by invites.state) flag)
     (give-inbox-removed flag)
+  ::
+  ::  +publish-note: store HTML for a hosted note so /notes/pub/... serves it.
+  ::  Host-only (only the notebook host's ship maintains its public URL).
+  ::  Local-only action. Requires edit permission and that the note exists.
+  ++  publish-note
+    |=  [=flag:n nid=@ud html=@t]
+    ^+  cor
+    ?>  =(src.bowl our.bowl)
+    ?>  =(ship.flag our.bowl)
+    =/  se  (se-abed:se-core flag)
+    ?>  (se-can-edit:se src.bowl)
+    ?>  (~(has by notes.notebook-state.se) nid)
+    =.  published.state  (~(put by published.state) [flag nid] html)
+    cor
+  ::
+  ::  +unpublish-note: remove a previously-published note's HTML.
+  ::  Same host-only / permission semantics as +publish-note.
+  ++  unpublish-note
+    |=  [=flag:n nid=@ud]
+    ^+  cor
+    ?>  =(src.bowl our.bowl)
+    ?>  =(ship.flag our.bowl)
+    =/  se  (se-abed:se-core flag)
+    ?>  (se-can-edit:se src.bowl)
+    =.  published.state  (~(del by published.state) [flag nid])
+    cor
   --
 ::
 ::  +serve-http: dispatch an HTTP request to the right responder.
