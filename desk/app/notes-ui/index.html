@@ -1541,7 +1541,7 @@
       <svg class="icon brand-icon"><use href="#i-notebook"/></svg>
       <div class="brand-text">
         <span class="brand-name">Notes</span>
-        <span class="sidebar-version">alpha v0.10.1</span>
+        <span class="sidebar-version">alpha v0.11.0</span>
       </div>
       <button class="icon-btn sidebar-menu-btn" onclick="toggleSidebarMenu()" title="More"><svg class="icon"><use href="#i-menu"/></svg></button>
     </div>
@@ -1795,7 +1795,7 @@ let historyViewing = null;
 // keystroke pause — short enough that an idle moment lands work to the
 // server. Combined with the visibilitychange/pagehide flush below,
 // users don't lose work when they background the tab or close it.
-const AUTOSAVE_DEBOUNCE_MS = 30000;
+const AUTOSAVE_DEBOUNCE_MS = 10000;
 let dirty = false;
 let savedRevision = 0;
 
@@ -2934,16 +2934,13 @@ function togglePreview() {
   previewMode = !previewMode;
   const editor = document.getElementById("editor");
   const preview = document.getElementById("preview");
-  const title = document.getElementById("note-title-input");
   const btn = document.getElementById("preview-btn");
   if (previewMode) {
     preview.innerHTML = renderMarkdown(editor.value);
-    title.style.display = "none";
     editor.style.display = "none";
     preview.style.display = "block";
     btn.style.color = "var(--accent)";
   } else {
-    title.style.display = "";
     editor.style.display = "block";
     preview.style.display = "none";
     btn.style.color = "";
@@ -3181,6 +3178,25 @@ async function selectNote(id) {
   document.getElementById("note-rev").textContent = `rev ${n.revision}`;
   document.title = `${n.title || "Untitled"} — Notes`;
   clearDirty();
+  // If a local draft exists from a prior session that was never saved,
+  // restore it. Only restore when it was based on a revision <= the
+  // current server revision (otherwise it's stale or already superseded).
+  const draft = readDraft(activeNotebookFlag, id);
+  if (draft && draft.baseRevision <= n.revision &&
+      (draft.title !== n.title || draft.body !== n.bodyMd)) {
+    document.getElementById("note-title-input").value = draft.title;
+    document.getElementById("editor").value = draft.body;
+    autosizeEditor();
+    if (previewMode) document.getElementById("preview").innerHTML = renderMarkdown(draft.body);
+    document.title = `${draft.title || "Untitled"} — Notes`;
+    dirty = true;
+    document.getElementById("save-status").textContent = "Unsaved draft restored";
+    if (saveTimer) clearTimeout(saveTimer);
+    if (!conflictActive) saveTimer = setTimeout(() => autoSave(), AUTOSAVE_DEBOUNCE_MS);
+  } else if (draft) {
+    // Stale or already-saved draft — clean up.
+    clearDraft(activeNotebookFlag, id);
+  }
   document.getElementById("overflow-note-section").style.display = "";
   updateBreadcrumb();
   renderBacklinks();
@@ -4285,6 +4301,36 @@ async function newNote() {
   }
 }
 
+// ── Local-storage drafts ─────────────────────────────────────────────────
+// Mirror every keystroke to localStorage keyed by [flag, noteId] so a
+// crash / accidental close / lost connection between autoSave intervals
+// doesn't lose work. The draft is cleared once a successful save lands.
+// Keyed against `baseRevision` (the savedRevision at write time) so we can
+// detect drafts that have already been superseded by a remote edit.
+const DRAFT_KEY_PREFIX = "notes-draft";
+function draftKey(flag, noteId) { return `${DRAFT_KEY_PREFIX}|${flag}|${noteId}`; }
+function writeDraft() {
+  if (!activeNotebookFlag || !activeNoteId) return;
+  try {
+    localStorage.setItem(draftKey(activeNotebookFlag, activeNoteId), JSON.stringify({
+      title: document.getElementById("note-title-input").value,
+      body: document.getElementById("editor").value,
+      baseRevision: savedRevision,
+      ts: Date.now()
+    }));
+  } catch {}
+}
+function clearDraft(flag, noteId) {
+  if (!flag || noteId == null) return;
+  try { localStorage.removeItem(draftKey(flag, noteId)); } catch {}
+}
+function readDraft(flag, noteId) {
+  try {
+    const raw = localStorage.getItem(draftKey(flag, noteId));
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
 // ── Auto-save ────────────────────────────────────────────────────────────
 let saveTimer = null;
 let saving = false;
@@ -4306,6 +4352,7 @@ function onEditorInput() {
   dirty = true;
   autosizeEditor();
   document.getElementById("save-status").textContent = "";
+  writeDraft();
   if (saveTimer) clearTimeout(saveTimer);
   // Don't arm autoSave while a conflict is unresolved — user must resolve first
   if (!conflictActive) saveTimer = setTimeout(() => autoSave(), AUTOSAVE_DEBOUNCE_MS);
@@ -4381,6 +4428,7 @@ async function autoSave() {
     }
     notes[activeNoteId] = { ...n, title, bodyMd: body, revision: savedRevision };
     dirty = false;
+    clearDraft(activeNotebookFlag, activeNoteId);
     document.getElementById("save-status").textContent = "Saved";
     document.getElementById("note-rev").textContent = `rev ${savedRevision}`;
     document.title = `${title || "Untitled"} — Notes`;
@@ -4548,6 +4596,7 @@ async function deleteNote() {
 
   await pokeNoteAction(activeNoteId, { type: "delete" });
 
+  clearDraft(activeNotebookFlag, activeNoteId);
   delete notes[activeNoteId];
   activeNoteId = null;
   clearEditor();
