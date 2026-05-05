@@ -913,7 +913,54 @@
   #preview blockquote { border-left: 3px solid var(--accent); padding-left: 14px; color: var(--text-muted); margin: 0.5em 0; }
   #preview ul, #preview ol { padding-left: 1.5em; margin: 0.4em 0; }
   #preview li { margin: 0.15em 0; }
-  #preview li > input[type="checkbox"] { margin-right: 0.4em; }
+  /* Themed task-list checkboxes — square outline, accent fill when checked. */
+  #preview li.task-item {
+    list-style: none;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5em;
+  }
+  #preview li.task-item > input[type="checkbox"] {
+    appearance: none;
+    -webkit-appearance: none;
+    flex: 0 0 auto;
+    width: 16px;
+    height: 16px;
+    margin: 0.25em 0 0 0;
+    border: 1.5px solid var(--border);
+    border-radius: 4px;
+    background: var(--bg);
+    cursor: pointer;
+    transition: background 0.12s ease, border-color 0.12s ease;
+    position: relative;
+  }
+  #preview li.task-item > input[type="checkbox"]:hover:not(:disabled) {
+    border-color: var(--accent);
+  }
+  #preview li.task-item > input[type="checkbox"]:checked {
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+  #preview li.task-item > input[type="checkbox"]:checked::after {
+    content: "";
+    position: absolute;
+    left: 4px;
+    top: 1px;
+    width: 4px;
+    height: 8px;
+    border: solid #fff;
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+  }
+  #preview li.task-item > input[type="checkbox"]:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+  /* Strike-through and dim the label text once a task is checked. */
+  #preview li.task-item:has(> input[type="checkbox"]:checked) {
+    color: var(--text-muted);
+    text-decoration: line-through;
+  }
   #preview a { color: var(--accent); text-decoration: none; }
   #preview a:hover { text-decoration: underline; }
   #preview hr { border: none; border-top: 1px solid var(--border); margin: 1em 0; }
@@ -1433,6 +1480,10 @@
     <line x1="6" y1="8" x2="13.5" y2="8"/>
     <line x1="6" y1="12" x2="12" y2="12"/>
   </symbol>
+  <symbol id="i-task" viewBox="0 0 16 16">
+    <rect x="1.75" y="1.75" width="12.5" height="12.5" rx="2.5"/>
+    <polyline points="4.5,8.5 7,11 11.5,5.5"/>
+  </symbol>
   <symbol id="i-image" viewBox="0 0 16 16">
     <rect x="1.5" y="2.5" width="13" height="11" rx="1"/>
     <circle cx="5.5" cy="6" r="1.2" fill="currentColor" stroke="none"/>
@@ -1549,6 +1600,7 @@
         <button class="icon-btn fmt-btn" onmousedown="event.preventDefault()" onclick="formatMarkdown('link')" title="Link (⌘⇧K)"><svg class="icon"><use href="#i-link"/></svg></button>
         <button class="icon-btn fmt-btn" onmousedown="event.preventDefault()" onclick="formatMarkdown('quote')" title="Blockquote"><svg class="icon"><use href="#i-quote"/></svg></button>
         <button class="icon-btn fmt-btn" onmousedown="event.preventDefault()" onclick="formatMarkdown('list')" title="Bulleted list"><svg class="icon"><use href="#i-list"/></svg></button>
+        <button class="icon-btn fmt-btn" onmousedown="event.preventDefault()" onclick="formatMarkdown('task')" title="Task list"><svg class="icon"><use href="#i-task"/></svg></button>
         <button class="icon-btn fmt-btn" onmousedown="event.preventDefault()" onclick="pickAndUploadImages()" title="Insert image"><svg class="icon"><use href="#i-image"/></svg></button>
       </div>
       <span class="fmt-separator" aria-hidden="true"></span>
@@ -1627,6 +1679,7 @@
       <button class="icon-btn fmt-btn" onmousedown="event.preventDefault()" onclick="formatMarkdown('link')" title="Link"><svg class="icon"><use href="#i-link"/></svg></button>
       <button class="icon-btn fmt-btn" onmousedown="event.preventDefault()" onclick="formatMarkdown('quote')" title="Blockquote"><svg class="icon"><use href="#i-quote"/></svg></button>
       <button class="icon-btn fmt-btn" onmousedown="event.preventDefault()" onclick="formatMarkdown('list')" title="Bulleted list"><svg class="icon"><use href="#i-list"/></svg></button>
+      <button class="icon-btn fmt-btn" onmousedown="event.preventDefault()" onclick="formatMarkdown('task')" title="Task list"><svg class="icon"><use href="#i-task"/></svg></button>
       <button class="icon-btn fmt-btn" onmousedown="event.preventDefault()" onclick="pickAndUploadImages()" title="Insert image"><svg class="icon"><use href="#i-image"/></svg></button>
     </div>
   </div>
@@ -2839,6 +2892,9 @@ function triggerImport(isFolder) {
 
 // ── Markdown Preview ──────────────────────────────────────────────────────
 let previewMode = false;
+// Source offset of the [ xX] character for each rendered checkbox, in DOM order.
+// Populated by renderMarkdown; consumed by togglePreviewCheckbox.
+let previewCheckboxOffsets = [];
 
 function togglePreview() {
   previewMode = !previewMode;
@@ -2861,6 +2917,31 @@ function togglePreview() {
   }
 }
 
+// Toggle the Nth task-list checkbox in the source markdown and re-render.
+function togglePreviewCheckbox(n) {
+  if (historyViewing) return;
+  const off = previewCheckboxOffsets[n];
+  if (off == null) return;
+  const editor = document.getElementById("editor");
+  const ch = editor.value[off];
+  if (ch !== " " && ch !== "x" && ch !== "X") return;
+  const flipped = ch === " " ? "x" : " ";
+  editor.value = editor.value.slice(0, off) + flipped + editor.value.slice(off + 1);
+  onEditorInput();
+  const preview = document.getElementById("preview");
+  if (preview) preview.innerHTML = renderMarkdown(editor.value);
+}
+
+document.addEventListener("change", (e) => {
+  const t = e.target;
+  if (!t || t.type !== "checkbox") return;
+  const idx = t.getAttribute("data-cb-index");
+  if (idx === null) return;
+  const preview = document.getElementById("preview");
+  if (!preview || !preview.contains(t)) return;
+  togglePreviewCheckbox(parseInt(idx, 10));
+});
+
 function renderMarkdown(src) {
   // escape HTML
   const esc = s => s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
@@ -2869,6 +2950,11 @@ function renderMarkdown(src) {
   let inCode = false, codeLang = "", codeLines = [];
   let inList = false, listType = "";
   let inBlockquote = false;
+  let cbIndex = 0;
+  previewCheckboxOffsets = [];
+  // Per-line start offsets into src (for mapping checkbox positions back to source).
+  const lineOffs = new Array(lines.length);
+  { let acc = 0; for (let k = 0; k < lines.length; k++) { lineOffs[k] = acc; acc += lines[k].length + 1; } }
 
   function flushList() {
     if (inList) { html += listType === "ul" ? "</ul>\n" : "</ol>\n"; inList = false; }
@@ -2922,8 +3008,12 @@ function renderMarkdown(src) {
       // checkbox
       const cbm = ulm[2].match(/^\[([ xX])\]\s*(.*)/);
       if (cbm) {
-        const checked = cbm[1] !== " " ? " checked disabled" : " disabled";
-        html += "<li><input type=\"checkbox\"" + checked + "> " + inline(cbm[2]) + "</li>\n";
+        const checked = cbm[1] !== " " ? " checked" : "";
+        const ro = historyViewing ? " disabled" : "";
+        const charOff = lineOffs[i] + (ulm[0].length - ulm[2].length) + 1;
+        previewCheckboxOffsets.push(charOff);
+        html += "<li class=\"task-item\"><input type=\"checkbox\" data-cb-index=\"" + cbIndex + "\"" + checked + ro + "> " + inline(cbm[2]) + "</li>\n";
+        cbIndex++;
       } else {
         html += "<li>" + inline(ulm[2]) + "</li>\n";
       }
@@ -5057,6 +5147,39 @@ function toggleLinePrefix(ta, prefix) {
   onEditorInput();
 }
 
+// Toggle a task-list prefix on the current line.
+//   bare line                → "- [ ] " + line
+//   "- " or "* " or "+ "     → replace marker with "- [ ] "
+//   "- [ ] " or "- [x] " etc → strip back to bare line
+function toggleTaskPrefix(ta) {
+  const v = ta.value;
+  const s = ta.selectionStart;
+  const lineStart = v.lastIndexOf("\n", s - 1) + 1;
+  const nlIdx = v.indexOf("\n", s);
+  const lineEnd = nlIdx < 0 ? v.length : nlIdx;
+  const line = v.slice(lineStart, lineEnd);
+  const taskRe = /^(\s*)([-*+])\s+\[[ xX]\]\s/;
+  const bulletRe = /^(\s*)([-*+])\s/;
+  let newLine, caretDelta;
+  let m;
+  if ((m = line.match(taskRe))) {
+    newLine = line.slice(m[0].length);
+    caretDelta = -m[0].length;
+  } else if ((m = line.match(bulletRe))) {
+    const indent = m[1];
+    const newPrefix = indent + "- [ ] ";
+    newLine = newPrefix + line.slice(m[0].length);
+    caretDelta = newPrefix.length - m[0].length;
+  } else {
+    newLine = "- [ ] " + line;
+    caretDelta = 6;
+  }
+  ta.value = v.slice(0, lineStart) + newLine + v.slice(lineEnd);
+  const newCaret = Math.max(lineStart, s + caretDelta);
+  ta.selectionStart = ta.selectionEnd = newCaret;
+  onEditorInput();
+}
+
 // Cycle the current line through heading levels: none → # → ## → ### → none.
 function cycleHeading(ta) {
   const v = ta.value;
@@ -5458,6 +5581,7 @@ function formatMarkdown(kind) {
   if (kind === "heading") { cycleHeading(ta); return; }
   if (kind === "quote")   { toggleLinePrefix(ta, "> "); return; }
   if (kind === "list")    { toggleLinePrefix(ta, "- "); return; }
+  if (kind === "task")    { toggleTaskPrefix(ta); return; }
   const v = ta.value;
   let s = ta.selectionStart, e = ta.selectionEnd;
   let sel = v.slice(s, e);

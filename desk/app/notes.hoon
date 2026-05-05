@@ -78,7 +78,7 @@
 ::  helper core
 ::
 |_  [=bowl:gall cards=(list card)]
-++  dummy  'v0.10.1-fix-join-embed-synthesize'
+++  dummy  'v0.10.4-leave-remote-sends-member-leave'
 ++  abet  [(flop cards) state]
 ++  cor   .
 ++  emit  |=(=card cor(cards [card cards]))
@@ -629,10 +629,17 @@
   [%agent [ship.flag %notes] %poke notes-command+!>(`command:notes`[%notebook flag [%member-join ~]])]
 ::
 ::  +leave-remote: leave a notebook on a remote ship
+::  Tells the host to drop us from members BEFORE cancelling the watch,
+::  so the host's `members.notebook-state` reflects reality.
 ++  leave-remote
   |=  =flag:notes
   ^+  cor
   ?>  (~(has by books.state) flag)
+  =.  cor
+    %-  emit
+    :+  %pass
+      /notes/leave/(scot %p ship.flag)/[name.flag]
+    [%agent [ship.flag %notes] %poke notes-command+!>(`command:notes`[%notebook flag [%member-leave ~]])]
   no-abet:no-leave:(no-abed:no-core flag)
 ::
 ::  +handle-send-invite: owner-only, fired locally. Pre-add the target ship
@@ -903,6 +910,13 @@
     ==
   ::
       [%notes %invite who=@ ship=@ name=@ ~]
+    ?+  -.sign  cor
+        %poke-ack  cor
+    ==
+  ::
+      [%notes %leave ship=@ name=@ ~]
+    ::  Best-effort %member-leave to host on +leave-remote. We don't act
+    ::  on the ack — the local entry is already gone either way.
     ?+  -.sign  cor
         %poke-ack  cor
     ==
