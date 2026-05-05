@@ -234,11 +234,72 @@
   ;<  ~              bind:m  (set-scry-gate old-scry)
   (pure:m c)
 ::
+::  +drain-self-pokes: re-deliver self-directed %poke cards through on-poke,
+::  recursively until fixpoint or depth=16.  Returns (each [...] tang).
+::  A "self-poke" matches [%pass * %agent [our.bowl dap.bowl] %poke *].
+::  pending: cards to scan for self-pokes in this round
+::  acc:     all cards collected so far (grows monotonically)
+::  st:      current harness state
+++  drain-self-pokes
+  |=  [pending=(list card) acc=(list card) st=state depth=@ud]
+  ^-  (each [(list card) state] (list tank))
+  ?:  =(depth 16)  [%& acc st]
+  ::  find self-pokes in pending
+  =/  self-pokes=(list card)
+    %+  skim  pending
+    |=  =card
+    ?.  ?=([%pass * %agent * %poke *] card)  |
+    ?&  =(our.bowl.st ship.q.card)
+        =(dap.bowl.st name.q.card)
+    ==
+  ?~  self-pokes  [%& acc st]
+  ::  process self-pokes one at a time via helper
+  (drain-loop self-pokes ~ acc st depth)
+::
+::  +drain-loop: deliver one self-poke at a time, tail-recurse into drain-self-pokes
+++  drain-loop
+  |=  [queue=(list card) next-pending=(list card) acc=(list card) st=state depth=@ud]
+  ^-  (each [(list card) state] (list tank))
+  ?~  queue
+    (drain-self-pokes next-pending acc st +(depth))
+  =*  sp  i.queue
+  ?>  ?=([%pass * %agent * %poke *] sp)
+  =/  mk=mark  p.cage.task.q.sp
+  =/  mv=vase  q.cage.task.q.sp
+  =/  pb=bowl:gall  bowl.st(src our.bowl.st)
+  =/  toon-res=toon
+    %+  mock
+      [. !=((~(on-poke agent.st pb) mk mv))]
+    |=  [ref=* pax=*]
+    ^-  (unit (unit *))
+    ?>  ?=(^ ref)
+    ?>  =(hoon-version -.ref)
+    =+  ;;(pax=path pax)
+    =/  rv=(unit vase)  (scry.st pax)
+    %.  ?~(rv ~ ``q.u.rv)
+    =+  !<(typ=type [-:!>(*type) +.ref])
+    same
+  ?.  ?=(%0 -.toon-res)
+    [%| ~[leaf+"self-poke failed or blocked"]]
+  =/  pair=[(list card) agent:gall]
+    !<([(list card) agent:gall] [-:!>(*[(list card) agent:gall]) p.toon-res])
+  =^  new-caz=(list card)  agent.st  pair
+  =.  st  st(bowl (play-cards bowl.st new-caz))
+  (drain-loop t.queue (welp next-pending new-caz) (welp acc new-caz) st depth)
+::
 ++  do-poke
   |=  [=mark =vase]
-  %-  do
+  =/  m  (mare ,(list card))
+  ^-  form:m
+  ;<  base-caz=(list card)  bind:m
+    %-  do
+    |=  s=state
+    (~(on-poke agent.s bowl.s) mark vase)
   |=  s=state
-  (~(on-poke agent.s bowl.s) mark vase)
+  =/  res=(each [(list card) state] (list tank))
+    (drain-self-pokes base-caz base-caz s 0)
+  ?:  ?=(%| -.res)  [%| p.res]
+  &+[-.p.res +.p.res]
 ::
 ++  do-watch
   |=  =path
@@ -272,11 +333,16 @@
   |=  [=wire =gill:gall =sign:agent:gall]
   =/  m  (mare ,(list card))
   ^-  form:m
+  ;<  base-caz=(list card)  bind:m
+    %-  do
+    |=  s=state
+    =.  bowl.s  (play-sign bowl.s wire gill sign)
+    (~(on-agent agent.s bowl.s(src p.gill)) wire sign)
   |=  s=state
-  =.  bowl.s  (play-sign bowl.s wire gill sign)
-  %.  s  %-  do
-  |=  s=state
-  (~(on-agent agent.s bowl.s(src p.gill)) wire sign)
+  =/  res=(each [(list card) state] (list tank))
+    (drain-self-pokes base-caz base-caz s 0)
+  ?:  ?=(%| -.res)  [%| p.res]
+  &+[-.p.res +.p.res]
 ::
 ++  do-arvo
   |=  [=wire sign=sign-arvo]

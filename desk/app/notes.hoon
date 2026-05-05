@@ -271,10 +271,7 @@
     ::  notebook-scoped: [%notebook =flag =a-notebook]
     =/  =flag:n  flag.act
     ?+    -.a-notebook.act
-        ::  default: route to host (se/no) based on net
-      =/  entry=[=net:n *]  (~(got by books.state) flag)
-      ?:  ?=(%pub -.net.entry)
-        se-abet:(se-poke:(se-abed:se-core flag) [flag (a-notebook-to-c-notebook a-notebook.act)])
+        ::  default: send command to host (which might be us — Gall loops it back)
       no-abet:(no-action:(no-abed:no-core flag) act)
     ::
         %invite
@@ -282,12 +279,10 @@
       (handle-send-invite flag who.a-notebook.act)
     ::
         %note
-      ::  %publish / %unpublish are local-only; everything else routes
+      ::  %publish / %unpublish are local-only; everything else routes via no-action
       =*  n-act  a-note.a-notebook.act
       ?+    -.n-act
-          =/  entry=[=net:n *]  (~(got by books.state) flag)
-        ?:  ?=(%pub -.net.entry)
-          se-abet:(se-poke:(se-abed:se-core flag) [flag (a-notebook-to-c-notebook a-notebook.act)])
+          ::  default: send command to host
         no-abet:(no-action:(no-abed:no-core flag) act)
       ::
           %publish
@@ -1321,11 +1316,11 @@
   ++  no-sub-path
     `path`/v0/notes/(scot %p ship.flag)/[name.flag]/updates
   ::
-  ::  +no-action: convert local action to c-notes and send poke to host
+  ::  +no-action: convert local action to c-notes and send poke to host.
+  ::  Works for both %pub and %sub net — if host==our.bowl, Gall loops it back.
   ++  no-action
     |=  act=action:n
     ^+  no-core
-    ?>  ?=(%sub -.net)
     ?>  ?=(%notebook -.act)
     =/  cmd=command:n
       [%notebook flag.act (a-notebook-to-c-notebook a-notebook.act)]
