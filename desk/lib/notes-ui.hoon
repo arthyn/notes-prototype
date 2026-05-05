@@ -917,7 +917,7 @@
   #preview li.task-item {
     list-style: none;
     display: flex;
-    align-items: flex-start;
+    align-items: baseline;
     gap: 0.5em;
   }
   #preview li.task-item > input[type="checkbox"] {
@@ -926,13 +926,14 @@
     flex: 0 0 auto;
     width: 16px;
     height: 16px;
-    margin: 0.25em 0 0 0;
+    margin: 0;
     border: 1.5px solid var(--border);
     border-radius: 4px;
     background: var(--bg);
     cursor: pointer;
     transition: background 0.12s ease, border-color 0.12s ease;
     position: relative;
+    transform: translateY(3px);
   }
   #preview li.task-item > input[type="checkbox"]:hover:not(:disabled) {
     border-color: var(--accent);
@@ -2269,6 +2270,38 @@ function applyFolderUpdate(fu) {
   loadFolders();
 }
 
+// Resolves to the new note's id when a note-created event arrives whose
+// note.folderId matches and whose id exceeds any id seen pre-poke. Used to
+// avoid the "select highest-id note" race after newNote / triggerAutoCreate
+// (especially on subscribers, where the host's echo may take >300ms).
+const pendingNoteCreates = [];
+function notifyNoteCreated(note) {
+  if (!note) return;
+  for (let i = pendingNoteCreates.length - 1; i >= 0; i--) {
+    const p = pendingNoteCreates[i];
+    if (note.folderId === p.folderId && note.id > p.minId) {
+      pendingNoteCreates.splice(i, 1);
+      clearTimeout(p.timer);
+      p.resolve(note);
+    }
+  }
+}
+function awaitNoteCreate(folderId, timeoutMs = 8000) {
+  const ids = Object.values(notes)
+    .filter(n => n.folderId === folderId)
+    .map(n => n.id);
+  const minId = ids.length ? Math.max(...ids) : 0;
+  return new Promise((resolve, reject) => {
+    const entry = { folderId, minId, resolve, reject, timer: null };
+    entry.timer = setTimeout(() => {
+      const idx = pendingNoteCreates.indexOf(entry);
+      if (idx >= 0) pendingNoteCreates.splice(idx, 1);
+      reject(new Error("note-create timeout"));
+    }, timeoutMs);
+    pendingNoteCreates.push(entry);
+  });
+}
+
 function applyNoteUpdate(nu) {
   if (!nu) return;
   const type = nu.type;
@@ -2276,6 +2309,9 @@ function applyNoteUpdate(nu) {
     // nu.revision is the archived note-revision object (from u-note %history-archived)
     if (nu.revision) applyArchivedRevision({ revision: nu.revision, noteId: nu.id });
     return;
+  }
+  if (type === "note-created" && nu.note) {
+    notifyNoteCreated(nu.note);
   }
   loadNotes();
   if (type === "note-updated" && nu.id === activeNoteId) {
@@ -4044,7 +4080,63 @@ function acceptWikiAutocomplete() {
   onEditorInput();
 }
 
+// On Enter, continue the current line's list/task prefix. If the line is
+// just an empty prefix, strip it (break out of the list) instead of inserting.
+function maybeContinueListOnEnter(e, ta) {
+  if (e.key !== "Enter" || e.shiftKey || e.altKey || e.metaKey || e.ctrlKey || e.isComposing) return false;
+  const v = ta.value;
+  const s = ta.selectionStart;
+  if (s !== ta.selectionEnd) return false;
+  const lineStart = v.lastIndexOf("\n", s - 1) + 1;
+  const nlIdx = v.indexOf("\n", s);
+  const lineEnd = nlIdx < 0 ? v.length : nlIdx;
+  const line = v.slice(lineStart, lineEnd);
+
+  const taskRe = /^(\s*)([-*+])(\s+)\[([ xX])\](\s+)(.*)$/;
+  const bulletRe = /^(\s*)([-*+])(\s+)(.*)$/;
+  const orderedRe = /^(\s*)(\d+)([.)])(\s+)(.*)$/;
+
+  let prefix = null, content = null;
+  let m;
+  if ((m = line.match(taskRe))) {
+    prefix = m[1] + m[2] + m[3] + "[ ]" + m[5];
+    content = m[6];
+  } else if ((m = line.match(bulletRe))) {
+    prefix = m[1] + m[2] + m[3];
+    content = m[4];
+  } else if ((m = line.match(orderedRe))) {
+    const next = parseInt(m[2], 10) + 1;
+    prefix = m[1] + next + m[3] + m[4];
+    content = m[5];
+  } else {
+    return false;
+  }
+
+  // Don't intercept if the cursor is inside the prefix (let normal Enter split it).
+  const prefixEnd = lineStart + (line.length - content.length);
+  if (s < prefixEnd) return false;
+
+  // Empty prefix line — break out: remove the prefix, leave cursor on a blank line.
+  if (!content.trim()) {
+    e.preventDefault();
+    ta.value = v.slice(0, lineStart) + v.slice(lineEnd);
+    ta.selectionStart = ta.selectionEnd = lineStart;
+    onEditorInput();
+    return true;
+  }
+
+  // Continue: insert newline + same prefix at the cursor.
+  e.preventDefault();
+  const inserted = "\n" + prefix;
+  ta.value = v.slice(0, s) + inserted + v.slice(s);
+  const newCaret = s + inserted.length;
+  ta.selectionStart = ta.selectionEnd = newCaret;
+  onEditorInput();
+  return true;
+}
+
 document.getElementById("editor").addEventListener("keydown", (e) => {
+  if (maybeContinueListOnEnter(e, e.target)) return;
   if (!wikiAutocompleteOpen) return;
   if (e.key === "ArrowDown") {
     e.preventDefault(); e.stopPropagation();
@@ -4176,18 +4268,23 @@ async function newNote() {
   if (!activeFolderId) { alert("No folder selected"); return; }
   if (!await confirmDirty()) return;
 
-  await pokeNotebook({ type: "create-note", folder: activeFolderId, title: "Untitled", body: "" });
-
-  // Reload, select the newest note, and focus the editor
-  setTimeout(async () => {
-    await loadNotes();
-    const inFolder = Object.values(notes).filter(n => n.folderId === activeFolderId);
+  const targetFolder = activeFolderId;
+  // Listen for the resulting note-created event before pokeing, so we can't
+  // miss an echo that arrives faster than pokeAction's poke-ack resolves.
+  const waitForCreate = awaitNoteCreate(targetFolder).catch(() => null);
+  await pokeNotebook({ type: "create-note", folder: targetFolder, title: "Untitled", body: "" });
+  const created = await waitForCreate;
+  await loadNotes();
+  let pickId = created?.id;
+  if (pickId == null) {
+    const inFolder = Object.values(notes).filter(n => n.folderId === targetFolder);
     const newest = inFolder.sort((a,b) => b.id - a.id)[0];
-    if (newest) {
-      await selectNote(newest.id);
-      document.getElementById("editor").focus();
-    }
-  }, 300);
+    pickId = newest?.id;
+  }
+  if (pickId != null) {
+    await selectNote(pickId);
+    document.getElementById("editor").focus();
+  }
 }
 
 // ── Auto-save ────────────────────────────────────────────────────────────
@@ -4228,27 +4325,32 @@ async function triggerAutoCreate() {
     return;
   }
   autoCreating = true;
-  await pokeNotebook({ type: "create-note", folder: activeFolderId, title: "Untitled", body: "" });
-  setTimeout(async () => {
-    // Capture what the user typed during the create roundtrip
-    const pendingBody = editor.value;
-    const pendingTitle = titleInput.value;
-    await loadNotes();
-    const inFolder = Object.values(notes).filter(n => n.folderId === activeFolderId);
+  const targetFolder = activeFolderId;
+  const waitForCreate = awaitNoteCreate(targetFolder).catch(() => null);
+  await pokeNotebook({ type: "create-note", folder: targetFolder, title: "Untitled", body: "" });
+  const created = await waitForCreate;
+  // Capture what the user typed during the create roundtrip
+  const pendingBody = editor.value;
+  const pendingTitle = titleInput.value;
+  await loadNotes();
+  let pickId = created?.id;
+  if (pickId == null) {
+    const inFolder = Object.values(notes).filter(n => n.folderId === targetFolder);
     const newest = inFolder.sort((a,b) => b.id - a.id)[0];
-    autoCreating = false;
-    if (!newest) return;
-    await selectNote(newest.id);
-    // selectNote wrote the server-side (empty) values; restore what they typed
-    editor.value = pendingBody;
-    titleInput.value = pendingTitle;
-    autosizeEditor();
-    editor.focus();
-    editor.selectionStart = editor.selectionEnd = editor.value.length;
-    dirty = true;
-    if (saveTimer) clearTimeout(saveTimer);
-    saveTimer = setTimeout(() => autoSave(), AUTOSAVE_DEBOUNCE_MS);
-  }, 300);
+    pickId = newest?.id;
+  }
+  autoCreating = false;
+  if (pickId == null) return;
+  await selectNote(pickId);
+  // selectNote wrote the server-side (empty) values; restore what they typed
+  editor.value = pendingBody;
+  titleInput.value = pendingTitle;
+  autosizeEditor();
+  editor.focus();
+  editor.selectionStart = editor.selectionEnd = editor.value.length;
+  dirty = true;
+  if (saveTimer) clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => autoSave(), AUTOSAVE_DEBOUNCE_MS);
 }
 
 let lastOwnSaveAt = 0;
@@ -5127,56 +5229,95 @@ document.addEventListener("keydown", e => {
 // ── Markdown formatting (⌘B / ⌘I / ⌘K) ────────────────────────────────────
 // Toggle a single-line prefix ("> ", "- ", etc.) on the line containing the
 // caret. Add it if absent, remove if present, keep caret sensible.
+// Toggle a literal prefix on the current line — or on every line in the
+// selection. Smart-toggle: if every non-empty selected line already starts
+// with the prefix, strip; otherwise add to all.
 function toggleLinePrefix(ta, prefix) {
   const v = ta.value;
   const s = ta.selectionStart;
-  const lineStart = v.lastIndexOf("\n", s - 1) + 1;
-  const nlIdx = v.indexOf("\n", s);
-  const lineEnd = nlIdx < 0 ? v.length : nlIdx;
-  const line = v.slice(lineStart, lineEnd);
-  let newLine, newCaret;
-  if (line.startsWith(prefix)) {
-    newLine = line.slice(prefix.length);
-    newCaret = Math.max(lineStart, s - prefix.length);
+  const e = ta.selectionEnd;
+  const blockStart = v.lastIndexOf("\n", s - 1) + 1;
+  const searchFrom = e > s && v[e - 1] === "\n" ? e - 1 : e;
+  const nlEnd = v.indexOf("\n", searchFrom);
+  const blockEnd = nlEnd < 0 ? v.length : nlEnd;
+  const block = v.slice(blockStart, blockEnd);
+  const lines = block.split("\n");
+
+  const nonEmpty = lines.filter(l => l.trim());
+  const allHave = nonEmpty.length > 0 && nonEmpty.every(l => l.startsWith(prefix));
+
+  const newLines = lines.map(l => {
+    if (allHave) {
+      return l.startsWith(prefix) ? l.slice(prefix.length) : l;
+    }
+    if (!l.trim()) return l;
+    return l.startsWith(prefix) ? l : prefix + l;
+  });
+
+  const newBlock = newLines.join("\n");
+  ta.value = v.slice(0, blockStart) + newBlock + v.slice(blockEnd);
+
+  if (s === e && lines.length === 1) {
+    const delta = newBlock.length - block.length;
+    const newCaret = Math.max(blockStart, s + delta);
+    ta.selectionStart = ta.selectionEnd = newCaret;
   } else {
-    newLine = prefix + line;
-    newCaret = s + prefix.length;
+    ta.selectionStart = blockStart;
+    ta.selectionEnd = blockStart + newBlock.length;
   }
-  ta.value = v.slice(0, lineStart) + newLine + v.slice(lineEnd);
-  ta.selectionStart = ta.selectionEnd = newCaret;
   onEditorInput();
 }
 
-// Toggle a task-list prefix on the current line.
+// Toggle a task-list prefix across every line in the current selection
+// (or the cursor's line if there's no selection).
 //   bare line                → "- [ ] " + line
 //   "- " or "* " or "+ "     → replace marker with "- [ ] "
 //   "- [ ] " or "- [x] " etc → strip back to bare line
+// Bulk rule: if every non-empty selected line is already a task, strip;
+// otherwise, add task prefixes to all lines.
 function toggleTaskPrefix(ta) {
   const v = ta.value;
   const s = ta.selectionStart;
-  const lineStart = v.lastIndexOf("\n", s - 1) + 1;
-  const nlIdx = v.indexOf("\n", s);
-  const lineEnd = nlIdx < 0 ? v.length : nlIdx;
-  const line = v.slice(lineStart, lineEnd);
+  const e = ta.selectionEnd;
+  const blockStart = v.lastIndexOf("\n", s - 1) + 1;
+  // If the selection ends exactly at a newline, don't pull in the next line.
+  const searchFrom = e > s && v[e - 1] === "\n" ? e - 1 : e;
+  const nlEnd = v.indexOf("\n", searchFrom);
+  const blockEnd = nlEnd < 0 ? v.length : nlEnd;
+  const block = v.slice(blockStart, blockEnd);
+  const lines = block.split("\n");
+
   const taskRe = /^(\s*)([-*+])\s+\[[ xX]\]\s/;
   const bulletRe = /^(\s*)([-*+])\s/;
-  let newLine, caretDelta;
-  let m;
-  if ((m = line.match(taskRe))) {
-    newLine = line.slice(m[0].length);
-    caretDelta = -m[0].length;
-  } else if ((m = line.match(bulletRe))) {
-    const indent = m[1];
-    const newPrefix = indent + "- [ ] ";
-    newLine = newPrefix + line.slice(m[0].length);
-    caretDelta = newPrefix.length - m[0].length;
+
+  const nonEmpty = lines.filter(l => l.trim());
+  const allTasks = nonEmpty.length > 0 && nonEmpty.every(l => taskRe.test(l));
+
+  const newLines = lines.map(l => {
+    if (allTasks) {
+      const m = l.match(taskRe);
+      return m ? l.slice(m[0].length) : l;
+    }
+    if (!l.trim()) return l;
+    if (taskRe.test(l)) return l;
+    const bm = l.match(bulletRe);
+    if (bm) return bm[1] + "- [ ] " + l.slice(bm[0].length);
+    return "- [ ] " + l;
+  });
+
+  const newBlock = newLines.join("\n");
+  ta.value = v.slice(0, blockStart) + newBlock + v.slice(blockEnd);
+
+  if (s === e && lines.length === 1) {
+    // Single line, no selection — preserve cursor position, adjusted by delta.
+    const delta = newBlock.length - block.length;
+    const newCaret = Math.max(blockStart, s + delta);
+    ta.selectionStart = ta.selectionEnd = newCaret;
   } else {
-    newLine = "- [ ] " + line;
-    caretDelta = 6;
+    // Multi-line or actual selection — select the rewritten block.
+    ta.selectionStart = blockStart;
+    ta.selectionEnd = blockStart + newBlock.length;
   }
-  ta.value = v.slice(0, lineStart) + newLine + v.slice(lineEnd);
-  const newCaret = Math.max(lineStart, s + caretDelta);
-  ta.selectionStart = ta.selectionEnd = newCaret;
   onEditorInput();
 }
 

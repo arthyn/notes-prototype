@@ -78,7 +78,7 @@
 ::  helper core
 ::
 |_  [=bowl:gall cards=(list card)]
-++  dummy  'v0.10.4-leave-remote-sends-member-leave'
+++  dummy  'v0.10.9-bullet-quote-multi-line-toggle'
 ++  abet  [(flop cards) state]
 ++  cor   .
 ++  emit  |=(=card cor(cards [card cards]))
@@ -925,9 +925,19 @@
 ++  arvo
   |=  [=wire =sign-arvo]
   ^+  cor
-  ?+  sign-arvo  ~|(bad-arvo-sign+wire !!)
-    [%eyre %bound *]  cor
-  ==
+  ?:  ?=([%eyre %bound *] sign-arvo)  cor
+  ?:  ?=([%behn %wake *] sign-arvo)
+    =/  pole  ;;((pole knot) wire)
+    ?+  pole  ~|(bad-arvo-wire+wire !!)
+        [%notes %rewatch ship=@ name=@ ~]
+      =/  =flag:notes  [(slav %p ship.pole) `@tas`name.pole]
+      ?.  (~(has by books.state) flag)  cor
+      =/  entry=[=net:notes =notebook-state:notes]
+        (~(got by books.state) flag)
+      ?.  ?=(%sub -.net.entry)  cor
+      no-abet:no-start-watch:(no-abed:no-core flag)
+    ==
+  ~|(bad-arvo-sign+wire !!)
 ::
 ::  +can-view-flag: check if ship can view a notebook by flag
 ++  can-view-flag
@@ -1634,7 +1644,14 @@
       ?~  p.sign  no-core
       ?>  ?=(%sub -.net)
       =.  net  net(init |)
-      no-core
+      ::  Schedule a retry. The host (or network) may have transiently
+      ::  failed; without this, a single bad watch-ack leaves the
+      ::  subscription dead until the user manually rejoins.
+      %-  emit
+      :*  %pass
+          /notes/rewatch/(scot %p ship.flag)/[name.flag]
+          %arvo  %b  %wait  (add now.bowl ~s30)
+      ==
     ==
   ::
   ::  +no-response: apply an update from the host to local state
