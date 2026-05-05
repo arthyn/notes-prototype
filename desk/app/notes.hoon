@@ -259,44 +259,46 @@
     ::  host commands) flow via %notes-command instead.
     ?>  =(our.bowl src.bowl)
     =+  !<(act=action:n vase)
-    ::  top-level actions handled without notebook flag
-    ?:  ?=(%create-notebook -.act)
-      se-abet:(se-create-notebook:(se-init:se-core act) act)
-    ?:  ?=(%join -.act)
-      (join-remote flag.act)
-    ?:  ?=(%leave -.act)
-      (leave-remote flag.act)
-    ?:  ?=(%accept-invite -.act)
-      (handle-accept-invite flag.act)
-    ?:  ?=(%decline-invite -.act)
-      (handle-decline-invite flag.act)
-    ::  all other actions are notebook-scoped: [%notebook =flag =a-notebook]
-    ?>  ?=(%notebook -.act)
+    ::  switchable top-level cases first; %notebook (notebook-scoped) is meaty
+    ?.  ?=(%notebook -.act)
+      ?-  -.act
+        %create-notebook  se-abet:(se-create-notebook:(se-init:se-core act) act)
+        %join             (join-remote flag.act)
+        %leave            (leave-remote flag.act)
+        %accept-invite    (handle-accept-invite flag.act)
+        %decline-invite   (handle-decline-invite flag.act)
+      ==
+    ::  notebook-scoped: [%notebook =flag =a-notebook]
     =/  =flag:n  flag.act
-    ::  %invite: owner sends invite to a ship — handled locally
-    ?:  ?=(%invite -.a-notebook.act)
-      (handle-send-invite flag who.a-notebook.act)
-    ::  %note [%publish]/[%unpublish]: local-only, not forwarded to remote hosts
-    ?:  ?=(%note -.a-notebook.act)
-      =*  n-act  a-note.a-notebook.act
-      ?:  ?=(%publish -.n-act)
-        =.  published.state  (~(put by published.state) [flag id.a-notebook.act] html.n-act)
-        cor
-      ?:  ?=(%unpublish -.n-act)
-        =.  published.state  (~(del by published.state) [flag id.a-notebook.act])
-        cor
-      ::  all other note actions: route to se/no core
-      =/  entry=[=net:n *]
-        (~(got by books.state) flag)
+    ?+    -.a-notebook.act
+        ::  default: route to host (se/no) based on net
+      =/  entry=[=net:n *]  (~(got by books.state) flag)
       ?:  ?=(%pub -.net.entry)
         se-abet:(se-poke:(se-abed:se-core flag) [flag (a-notebook-to-c-notebook a-notebook.act)])
       no-abet:(no-action:(no-abed:no-core flag) act)
-    ::  all other notebook actions: route to se/no core
-    =/  entry=[=net:n *]
-      (~(got by books.state) flag)
-    ?:  ?=(%pub -.net.entry)
-      se-abet:(se-poke:(se-abed:se-core flag) [flag (a-notebook-to-c-notebook a-notebook.act)])
-    no-abet:(no-action:(no-abed:no-core flag) act)
+    ::
+        %invite
+      ::  owner sends invite to a ship — handled locally
+      (handle-send-invite flag who.a-notebook.act)
+    ::
+        %note
+      ::  %publish / %unpublish are local-only; everything else routes
+      =*  n-act  a-note.a-notebook.act
+      ?+    -.n-act
+          =/  entry=[=net:n *]  (~(got by books.state) flag)
+        ?:  ?=(%pub -.net.entry)
+          se-abet:(se-poke:(se-abed:se-core flag) [flag (a-notebook-to-c-notebook a-notebook.act)])
+        no-abet:(no-action:(no-abed:no-core flag) act)
+      ::
+          %publish
+        =.  published.state  (~(put by published.state) [flag id.a-notebook.act] html.n-act)
+        cor
+      ::
+          %unpublish
+        =.  published.state  (~(del by published.state) [flag id.a-notebook.act])
+        cor
+      ==
+    ==
   ::
       %notes-command
     =+  !<(cmd=command:n vase)
