@@ -220,6 +220,14 @@
 ::  $u-notes: wire/stream shape — carries flag so listeners know which notebook
 +$  u-notes  [=flag =u-notebook]
 ::
+::  $u-inbox: events pushed on /v0/inbox/stream for cross-cutting UI signals
+::  (pending invites + a "notebooks changed, please re-scry" ping).
++$  u-inbox
+  $%  [%invite-received =flag from=ship sent-at=@da title=@t]
+      [%invite-removed =flag]
+      [%notebooks-changed ~]
+  ==
+::
 ::  Responses (subscription facts)
 ::  ============================================================
 ::

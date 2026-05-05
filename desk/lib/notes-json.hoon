@@ -277,6 +277,36 @@
     ^-  json
     [%a (turn items published-record)]
   ::
+  ::  +u-inbox: encode an /v0/inbox/stream event. Wraps the payload in
+  ::  {type:'update', update:<payload>} for FE compat with the existing
+  ::  applyNotebookUpdate / applyInboxEvent dispatch.
+  ++  u-inbox
+    |=  evt=u-inbox:n
+    ^-  json
+    =/  payload=json
+      ?-    -.evt
+          %invite-received
+        %-  pairs
+        :~  ['type' s+'invite-received']
+            ['host' s+(scot %p ship.flag.evt)]
+            ['flagName' s+name.flag.evt]
+            ['from' s+(scot %p from.evt)]
+            ['sentAt' (numb (div (sub sent-at.evt ~1970.1.1) ~s1))]
+            ['title' s+title.evt]
+        ==
+      ::
+          %invite-removed
+        %-  pairs
+        :~  ['type' s+'invite-removed']
+            ['host' s+(scot %p ship.flag.evt)]
+            ['flagName' s+name.flag.evt]
+        ==
+      ::
+          %notebooks-changed
+        (pairs ~[['type' s+'notebooks-changed']])
+      ==
+    (pairs ~[['type' s+'update'] ['update' payload]])
+  ::
   ::  +note-revisions: encode (list note-revision)
   ++  note-revisions
     |=  items=(list note-revision:n)

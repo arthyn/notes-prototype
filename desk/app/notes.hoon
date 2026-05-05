@@ -688,38 +688,21 @@
 ::  +notebooks-changed-card: a fact telling subscribed UIs to re-scry notebooks
 ++  notebooks-changed-card
   ^-  card
-  =/  evt=json
-    (pairs:enjs:format ~[['type' s+'notebooks-changed']])
-  [%give %fact [/v0/inbox/stream]~ json+!>((pairs:enjs:format ~[['type' s+'update'] ['update' evt]]))]
+  [%give %fact [/v0/inbox/stream]~ notes-inbox-update+!>(`u-inbox:n`[%notebooks-changed ~])]
 ::
 ::  +give-inbox-received: emit an invite-received event on /v0/inbox/stream
 ++  give-inbox-received
   |=  [=flag:n from=ship sent-at=@da title=@t]
   ^+  cor
-  =/  evt=json
-    %-  pairs:enjs:format
-    :~  ['type' s+'invite-received']
-        ['host' s+(scot %p ship.flag)]
-        ['flagName' s+name.flag]
-        ['from' s+(scot %p from)]
-        ['sentAt' (numb:enjs:format (div (sub sent-at ~1970.1.1) ~s1))]
-        ['title' s+title]
-    ==
   %-  give
-  [%fact [/v0/inbox/stream]~ json+!>((pairs:enjs:format ~[['type' s+'update'] ['update' evt]]))]
+  [%fact [/v0/inbox/stream]~ notes-inbox-update+!>(`u-inbox:n`[%invite-received flag from sent-at title])]
 ::
 ::  +give-inbox-removed: emit an invite-removed event on /v0/inbox/stream
 ++  give-inbox-removed
   |=  =flag:n
   ^+  cor
-  =/  evt=json
-    %-  pairs:enjs:format
-    :~  ['type' s+'invite-removed']
-        ['host' s+(scot %p ship.flag)]
-        ['flagName' s+name.flag]
-    ==
   %-  give
-  [%fact [/v0/inbox/stream]~ json+!>((pairs:enjs:format ~[['type' s+'update'] ['update' evt]]))]
+  [%fact [/v0/inbox/stream]~ notes-inbox-update+!>(`u-inbox:n`[%invite-removed flag])]
 ::
 ::  ====  se-core: server/host core  ====
 ::
