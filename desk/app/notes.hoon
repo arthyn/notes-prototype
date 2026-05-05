@@ -221,8 +221,8 @@
     =/  xlat=(map flag-v9:n flag:n)
       %-  malt
       %+  turn  ~(tap by books.s)
-      |=  [f=flag-v9:n [=net:n =notebook-state:n]]
-      =/  new-name=@tas  (slugify title.notebook.notebook-state id.notebook.notebook-state)
+      |=  [f=flag-v9:n [* =notebook-state:n]]
+      =/  new-name=@tas  (slugify [title id]:notebook.notebook-state)
       [f [ship.f new-name]]
     =/  new-books=(map flag:n [=net:n =notebook-state:n])
       %-  malt
@@ -286,13 +286,13 @@
         =.  published.state  (~(del by published.state) [flag id.a-notebook.act])
         cor
       ::  all other note actions: route to se/no core
-      =/  entry=[=net:n =notebook-state:n]
+      =/  entry=[=net:n *]
         (~(got by books.state) flag)
       ?:  ?=(%pub -.net.entry)
         se-abet:(se-poke:(se-abed:se-core flag) [flag (a-notebook-to-c-notebook a-notebook.act)])
       no-abet:(no-action:(no-abed:no-core flag) act)
     ::  all other notebook actions: route to se/no core
-    =/  entry=[=net:n =notebook-state:n]
+    =/  entry=[=net:n *]
       (~(got by books.state) flag)
     ?:  ?=(%pub -.net.entry)
       se-abet:(se-poke:(se-abed:se-core flag) [flag (a-notebook-to-c-notebook a-notebook.act)])
@@ -350,7 +350,7 @@
     |=  [=flag:n who=ship]
     ^+  cor
     ?>  =(ship.flag our.bowl)
-    =/  entry=[=net:n =notebook-state:n]
+    =/  entry=[* =notebook-state:n]
       (~(got by books.state) flag)
     ::  pre-add via se-core (also enforces ownership)
     =.  cor
@@ -488,9 +488,9 @@
       [%x %v0 %notebooks ~]
     =/  summaries=(list notebook-summary:n)
       %+  murn  ~(tap by books.state)
-      |=  [=flag:n [=net:n =notebook-state:n]]
+      |=  [=flag:n [* =notebook-state:n]]
       ?.  (can-view-flag flag src.bowl)  ~
-      `[flag notebook.notebook-state visibility.notebook-state]
+      `[flag [notebook visibility]:notebook-state]
     ``notes-notebooks+!>(summaries)
     ::  /x/v0/published — list of {host, flagName, noteId} for each published note
       [%x %v0 %published ~]
@@ -660,7 +660,7 @@
   ^-  flag:n
   =/  matches=(list flag:n)
     %+  murn  ~(tap by books.state)
-    |=  [=flag:n [=net:n =notebook-state:n]]
+    |=  [=flag:n [* =notebook-state:n]]
     ?:  =(nid id.notebook.notebook-state)
       `flag
     ~
@@ -811,12 +811,12 @@
     =/  nid=@ud  +(next-id.state)
     =/  rfid=@ud  +(nid)
     =/  =notebook:n
-      [nid title.act our.bowl now.bowl now.bowl our.bowl]
+      [nid title.act [our now now our]:bowl]
     =/  nb-state=notebook-state:n
       :*  notebook
           (~(put by *members:n) our.bowl %owner)
           %private
-          (~(put by *(map @ud folder:n)) rfid [rfid nid '/' ~ our.bowl now.bowl now.bowl our.bowl])
+          (~(put by *(map @ud folder:n)) rfid [rfid nid '/' ~ [our now now our]:bowl])
           ~
           ~
       ==
@@ -947,7 +947,7 @@
     =/  fid=@ud  +(next-id.state)
     =.  next-id.state  fid
     =/  =folder:n
-      [fid id.notebook.notebook-state name.c-notebook.cmd parent.c-notebook.cmd src.bowl now.bowl now.bowl src.bowl]
+      [fid id.notebook.notebook-state name.c-notebook.cmd parent.c-notebook.cmd [src now now src]:bowl]
     =.  folders.notebook-state
       (~(put by folders.notebook-state) fid folder)
     (se-update [%folder fid [%created folder]])
@@ -1235,7 +1235,7 @@
       =/  new-fid=@ud  +(next-id.state)
       =.  next-id.state  new-fid
       =/  =folder:n
-        [new-fid nid-nb name.i.items `fid src.bowl now.bowl now.bowl src.bowl]
+        [new-fid nid-nb name.i.items `fid [src now now src]:bowl]
       =.  folders.notebook-state
         (~(put by folders.notebook-state) new-fid folder)
       =.  se-core  (se-update [%folder new-fid [%created folder]])
