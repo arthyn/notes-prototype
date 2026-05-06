@@ -283,6 +283,11 @@ export class NotesPage {
     // would return either pre-save or post-save-clear.
     await this.page.keyboard.press(process.platform === "darwin" ? "Meta+s" : "Control+s");
     await expect(this.page.locator("#save-status")).toHaveText("Saved", { timeout: 15_000 });
+    // Local "Saved" only confirms the FE got its poke-ack — the host's
+    // se-update + propagation back via the stream subscription takes
+    // longer in the cross-ship case. Give the round-trip time to land
+    // before the test asserts on remote state.
+    await this.page.waitForTimeout(3000);
   }
 
   // ── Assertions ──────────────────────────────────────────────────────────
