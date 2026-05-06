@@ -37,6 +37,13 @@ export const test = base.extend<{
   notes: async ({ page }, use) => {
     await page.goto("/notes/");
     await dismissDisclaimer(page);
+    // Wait for connect() to populate window.SHIP — pokes before /~/name
+    // resolves carry ship:"" and Eyre 400s the channel PUT. The bootstrap
+    // exposes window.__notesGetShip() once SHIP is set.
+    await page.waitForFunction(
+      () => typeof (window as any).__notesGetShip === "function" && (window as any).__notesGetShip() !== "",
+      { timeout: 15_000 },
+    );
     await use(new NotesPage(page));
   },
   cleanup: async ({}, use) => {
@@ -333,5 +340,9 @@ export async function openSubscriberContext(browser: Browser): Promise<{
   const page = await context.newPage();
   await page.goto("/notes/");
   await dismissDisclaimer(page);
+  await page.waitForFunction(
+    () => typeof (window as any).__notesGetShip === "function" && (window as any).__notesGetShip() !== "",
+    { timeout: 15_000 },
+  );
   return { context, page, notes: new NotesPage(page), patp, url };
 }

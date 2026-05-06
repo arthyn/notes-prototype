@@ -1856,6 +1856,11 @@ async function connect() {
   document.getElementById("connect-panel").style.display = "none";
   setConnectionState("connected");
 
+  // Test harness probe: e2e fixtures wait on this to know SHIP is populated
+  // before issuing any pokes. Returns truthy after /~/name resolves; before
+  // that, SHIP is empty and pokes would carry ship:"" → 400 from Eyre.
+  window.__notesGetShip = () => SHIP;
+
   openChannel();
 
   // loadNotebooks, loadPublished, loadInvites are independent scries — fire
