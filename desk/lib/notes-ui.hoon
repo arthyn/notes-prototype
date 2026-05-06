@@ -2138,6 +2138,14 @@ function startSSE() {
   if (eventSource) eventSource.close();
   eventSource = new EventSource(`${BASE_URL}/~/channel/${channelId}`, { withCredentials: true });
   eventSource.onmessage = (e) => {
+    // E2E tracing: log every raw SSE message — including poke-acks —
+    // so failures show the full timeline. Gated by localStorage so prod
+    // users don't get console spam.
+    try {
+      if (localStorage.getItem("e2e-log-sse") === "1") {
+        console.log("[sse]", e.data);
+      }
+    } catch {}
     try {
       const msg = JSON.parse(e.data);
       // Resolve/reject the matching outstanding pokeAction first; let
