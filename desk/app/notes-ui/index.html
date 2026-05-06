@@ -1763,7 +1763,11 @@
 // ── State ──────────────────────────────────────────────────────────────────
 let BASE_URL = "";
 let SHIP = "";
-let channelId = "";
+// Eyre channel id: initialized eagerly so tests (and fast user clicks)
+// that fire a poke before connect()'s openChannel() runs don't PUT to
+// /~/channel/ (empty id) and get a 400. The channel comes into being
+// on the first PUT — picking the id here is just a name we'll use.
+let channelId = `notes-ui-${Date.now()}`;
 let eventSource = null;
 let sseState = "connected";  // "connected" | "reconnecting"
 let landscapeTheme = null;   // "light" | "dark" | null (unknown/auto)
@@ -4374,9 +4378,6 @@ async function triggerAutoCreate() {
   const waitForCreate = awaitNoteCreate(targetFolder).catch(() => null);
   await pokeNotebook({ type: "create-note", folder: targetFolder, title: "Untitled", body: "" });
   const created = await waitForCreate;
-  // Capture what the user typed during the create roundtrip
-  const pendingBody = editor.value;
-  const pendingTitle = titleInput.value;
   await loadNotes();
   let pickId = created?.id;
   if (pickId == null) {
@@ -4386,6 +4387,12 @@ async function triggerAutoCreate() {
   }
   autoCreating = false;
   if (pickId == null) return;
+  // Capture what the user typed RIGHT BEFORE selectNote — selectNote
+  // overwrites the editor with server-side (empty) values, and previously
+  // we captured these earlier (before loadNotes), so any keystrokes typed
+  // during the loadNotes await were silently dropped on restore.
+  const pendingBody = editor.value;
+  const pendingTitle = titleInput.value;
   await selectNote(pickId);
   // selectNote wrote the server-side (empty) values; restore what they typed
   editor.value = pendingBody;
