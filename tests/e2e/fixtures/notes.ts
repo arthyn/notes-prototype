@@ -285,6 +285,18 @@ export class NotesPage {
       await dismissDisclaimer(this.page);
       // Brief wait for the sidebar to populate after boot/reload.
       await this.page.waitForTimeout(500);
+      // First, sweep any pending invite for this title — invite tests
+      // that fail before the sub accepts/declines leave the entry in
+      // invites.state. Decline via the FE function (a no-op if absent).
+      try {
+        await this.page.evaluate(async (t: string) => {
+          const w = window as any;
+          const list = await w.scry?.("/v0/invites").catch(() => []);
+          const inv = (list || []).find((i: any) => i.title === t);
+          if (!inv) return;
+          await w.declineInvite?.(`${inv.host}/${inv.flagName}`);
+        }, title);
+      } catch { /* best-effort */ }
       const item = this.page.locator(`.nb-item:has-text('${title}')`).first();
       if ((await item.count()) === 0) return;
       // dispatchEvent works for items past the fold (no actionability check).
