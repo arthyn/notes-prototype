@@ -226,6 +226,7 @@
     :~  ['host' s+(scot %p ship.flag.nd)]
         ['flagName' s+name.flag.nd]
         ['notebook' (notebook notebook.nd)]
+        ['visibility' s+(scot %tas visibility.nd)]
     ==
   ::
   ::  +member-record: encode one /v0/members item

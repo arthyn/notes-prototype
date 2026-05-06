@@ -329,11 +329,18 @@
       /notes/join/(scot %p ship.flag)/[name.flag]
     [%agent [ship.flag %notes] %poke notes-command+!>(`command:n`[%notebook flag [%member-join ~]])]
   ::
-  ::  +leave-remote: leave a notebook on a remote ship
+  ::  +leave-remote: leave a notebook on a remote ship.
+  ::  Tells the host to drop us from members BEFORE cancelling the watch
+  ::  so the host's `members.notebook-state` reflects reality.
   ++  leave-remote
     |=  =flag:n
     ^+  cor
     ?>  (~(has by books.state) flag)
+    =.  cor
+      %-  emit
+      :+  %pass
+        /notes/leave/(scot %p ship.flag)/[name.flag]
+      [%agent [ship.flag %notes] %poke notes-command+!>(`command:n`[%notebook flag [%member-leave ~]])]
     no-abet:no-leave:(no-abed:no-core flag)
   ::
   ::  +handle-send-invite: owner-only, fired locally. Pre-add the target ship
@@ -562,14 +569,30 @@
     ?+  -.sign  cor
         %poke-ack  cor
     ==
+  ::
+      [%notes %leave ship=@ name=@ ~]
+    ::  Best-effort %member-leave to host on +leave-remote. We don't act
+    ::  on the ack — the local entry is already gone either way.
+    ?+  -.sign  cor
+        %poke-ack  cor
+    ==
   ==
 ::
 ++  arvo
   |=  [=wire =sign-arvo]
   ^+  cor
-  ?+  sign-arvo  ~|(bad-arvo-sign+wire !!)
-    [%eyre %bound *]  cor
-  ==
+  ?:  ?=([%eyre %bound *] sign-arvo)  cor
+  ?:  ?=([%behn %wake *] sign-arvo)
+    =/  pole  ;;((pole knot) wire)
+    ?+  pole  ~|(bad-arvo-wire+wire !!)
+        [%notes %rewatch ship=@ name=@ ~]
+      =/  =flag:n  [(slav %p ship.pole) `@tas`name.pole]
+      ?.  (~(has by books.state) flag)  cor
+      =/  entry=[=net:n *]  (~(got by books.state) flag)
+      ?.  ?=(%sub -.net.entry)  cor
+      no-abet:no-start-watch:(no-abed:no-core flag)
+    ==
+  ~|(bad-arvo-sign+wire !!)
 ::
 ::  ====  utility arms  ====
 ::
@@ -1374,7 +1397,14 @@
       ?~  p.sign  no-core
       ?>  ?=(%sub -.net)
       =.  net  net(init |)
-      no-core
+      ::  Schedule a retry. The host (or network) may have transiently
+      ::  failed; without this, a single bad watch-ack leaves the
+      ::  subscription dead until the user manually rejoins.
+      %-  emit
+      :*  %pass
+          /notes/rewatch/(scot %p ship.flag)/[name.flag]
+          %arvo  %b  %wait  (add now.bowl ~s30)
+      ==
     ==
   ::
   ::  +no-response: apply an update from the host to local state
@@ -1496,7 +1526,7 @@
     ?>  ?=(^ (~(get by members.notebook-state) src.bowl))
     ?+  kind  ~
         %notebook
-      =/  nd=notebook-detail:n  [flag notebook.notebook-state]
+      =/  nd=notebook-detail:n  [flag notebook.notebook-state visibility.notebook-state]
       ``notes-notebook+!>(nd)
     ::
         %folders

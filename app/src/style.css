@@ -238,6 +238,18 @@ input:focus {
   margin: 12px 0;
 }
 
+.settings-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.settings-actions .primary-btn {
+  flex: 0 0 auto;
+}
+
 .primary-btn {
   flex: 1;
   padding: 8px 16px;

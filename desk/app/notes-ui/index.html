@@ -911,7 +911,55 @@
   #preview blockquote { border-left: 3px solid var(--accent); padding-left: 14px; color: var(--text-muted); margin: 0.5em 0; }
   #preview ul, #preview ol { padding-left: 1.5em; margin: 0.4em 0; }
   #preview li { margin: 0.15em 0; }
-  #preview li > input[type="checkbox"] { margin-right: 0.4em; }
+  /* Themed task-list checkboxes — square outline, accent fill when checked. */
+  #preview li.task-item {
+    list-style: none;
+    display: flex;
+    align-items: baseline;
+    gap: 0.5em;
+  }
+  #preview li.task-item > input[type="checkbox"] {
+    appearance: none;
+    -webkit-appearance: none;
+    flex: 0 0 auto;
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    border: 1.5px solid var(--border);
+    border-radius: 4px;
+    background: var(--bg);
+    cursor: pointer;
+    transition: background 0.12s ease, border-color 0.12s ease;
+    position: relative;
+    transform: translateY(3px);
+  }
+  #preview li.task-item > input[type="checkbox"]:hover:not(:disabled) {
+    border-color: var(--accent);
+  }
+  #preview li.task-item > input[type="checkbox"]:checked {
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+  #preview li.task-item > input[type="checkbox"]:checked::after {
+    content: "";
+    position: absolute;
+    left: 4px;
+    top: 1px;
+    width: 4px;
+    height: 8px;
+    border: solid #fff;
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+  }
+  #preview li.task-item > input[type="checkbox"]:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+  /* Strike-through and dim the label text once a task is checked. */
+  #preview li.task-item:has(> input[type="checkbox"]:checked) {
+    color: var(--text-muted);
+    text-decoration: line-through;
+  }
   #preview a { color: var(--accent); text-decoration: none; }
   #preview a:hover { text-decoration: underline; }
   #preview hr { border: none; border-top: 1px solid var(--border); margin: 1em 0; }
@@ -1431,6 +1479,10 @@
     <line x1="6" y1="8" x2="13.5" y2="8"/>
     <line x1="6" y1="12" x2="12" y2="12"/>
   </symbol>
+  <symbol id="i-task" viewBox="0 0 16 16">
+    <rect x="1.75" y="1.75" width="12.5" height="12.5" rx="2.5"/>
+    <polyline points="4.5,8.5 7,11 11.5,5.5"/>
+  </symbol>
   <symbol id="i-image" viewBox="0 0 16 16">
     <rect x="1.5" y="2.5" width="13" height="11" rx="1"/>
     <circle cx="5.5" cy="6" r="1.2" fill="currentColor" stroke="none"/>
@@ -1489,7 +1541,7 @@
       <svg class="icon brand-icon"><use href="#i-notebook"/></svg>
       <div class="brand-text">
         <span class="brand-name">Notes</span>
-        <span class="sidebar-version">alpha v0.10.0</span>
+        <span class="sidebar-version">alpha v0.11.0</span>
       </div>
       <button class="icon-btn sidebar-menu-btn" onclick="toggleSidebarMenu()" title="More"><svg class="icon"><use href="#i-menu"/></svg></button>
     </div>
@@ -1547,6 +1599,7 @@
         <button class="icon-btn fmt-btn" onmousedown="event.preventDefault()" onclick="formatMarkdown('link')" title="Link (⌘⇧K)"><svg class="icon"><use href="#i-link"/></svg></button>
         <button class="icon-btn fmt-btn" onmousedown="event.preventDefault()" onclick="formatMarkdown('quote')" title="Blockquote"><svg class="icon"><use href="#i-quote"/></svg></button>
         <button class="icon-btn fmt-btn" onmousedown="event.preventDefault()" onclick="formatMarkdown('list')" title="Bulleted list"><svg class="icon"><use href="#i-list"/></svg></button>
+        <button class="icon-btn fmt-btn" onmousedown="event.preventDefault()" onclick="formatMarkdown('task')" title="Task list"><svg class="icon"><use href="#i-task"/></svg></button>
         <button class="icon-btn fmt-btn" onmousedown="event.preventDefault()" onclick="pickAndUploadImages()" title="Insert image"><svg class="icon"><use href="#i-image"/></svg></button>
       </div>
       <span class="fmt-separator" aria-hidden="true"></span>
@@ -1625,6 +1678,7 @@
       <button class="icon-btn fmt-btn" onmousedown="event.preventDefault()" onclick="formatMarkdown('link')" title="Link"><svg class="icon"><use href="#i-link"/></svg></button>
       <button class="icon-btn fmt-btn" onmousedown="event.preventDefault()" onclick="formatMarkdown('quote')" title="Blockquote"><svg class="icon"><use href="#i-quote"/></svg></button>
       <button class="icon-btn fmt-btn" onmousedown="event.preventDefault()" onclick="formatMarkdown('list')" title="Bulleted list"><svg class="icon"><use href="#i-list"/></svg></button>
+      <button class="icon-btn fmt-btn" onmousedown="event.preventDefault()" onclick="formatMarkdown('task')" title="Task list"><svg class="icon"><use href="#i-task"/></svg></button>
       <button class="icon-btn fmt-btn" onmousedown="event.preventDefault()" onclick="pickAndUploadImages()" title="Insert image"><svg class="icon"><use href="#i-image"/></svg></button>
     </div>
   </div>
@@ -1741,7 +1795,7 @@ let historyViewing = null;
 // keystroke pause — short enough that an idle moment lands work to the
 // server. Combined with the visibilitychange/pagehide flush below,
 // users don't lose work when they background the tab or close it.
-const AUTOSAVE_DEBOUNCE_MS = 30000;
+const AUTOSAVE_DEBOUNCE_MS = 10000;
 let dirty = false;
 let savedRevision = 0;
 
@@ -1950,8 +2004,31 @@ let pendingShareResolve = null;
 
 async function ensureJoinedToFlag(flag) {
   if (!flag || !flag.includes("/")) return null;
-  let nb = Object.values(notebooks).find(n => n.flag === flag);
-  if (nb) return nb;
+  // Fast path: in-memory notebooks cache.
+  if (notebooks[flag]) return notebooks[flag];
+  // Cache miss can mean (a) we genuinely don't have the notebook, or
+  // (b) the cache hasn't populated yet — most commonly a fresh page
+  // load where the route resolves before, or in spite of, the bootstrap
+  // loadNotebooks. Confirm via a direct scry of just this flag before
+  // showing the join modal — agent returns the notebook object if we
+  // can view it (i.e. we're a member), or JSON null otherwise.
+  const found = await scry(`/v0/notebook/${flag}`);
+  if (found && found.notebook) {
+    // We DO have it. Refresh the full list so the rest of the UI sees it,
+    // but trust the specific-notebook scry as authoritative — synthesize
+    // the cache entry directly even if the list refresh fails or misses
+    // it (which we've seen on cold-load races, especially in embed mode).
+    await loadNotebooks();
+    if (notebooks[flag]) return notebooks[flag];
+    const nb = found.notebook;
+    nb.host = found.host;
+    nb.flagName = found.flagName;
+    nb.flag = `${found.host}/${found.flagName}`;
+    nb.visibility = found.visibility || 'private';
+    notebooks[nb.flag] = nb;
+    return nb;
+  }
+  // Truly not joined; prompt to join.
   const wantJoin = await promptJoinShared(flag);
   if (!wantJoin) return null;
   return joinRemoteAndWait(flag);
@@ -2191,6 +2268,38 @@ function applyFolderUpdate(fu) {
   loadFolders();
 }
 
+// Resolves to the new note's id when a note-created event arrives whose
+// note.folderId matches and whose id exceeds any id seen pre-poke. Used to
+// avoid the "select highest-id note" race after newNote / triggerAutoCreate
+// (especially on subscribers, where the host's echo may take >300ms).
+const pendingNoteCreates = [];
+function notifyNoteCreated(note) {
+  if (!note) return;
+  for (let i = pendingNoteCreates.length - 1; i >= 0; i--) {
+    const p = pendingNoteCreates[i];
+    if (note.folderId === p.folderId && note.id > p.minId) {
+      pendingNoteCreates.splice(i, 1);
+      clearTimeout(p.timer);
+      p.resolve(note);
+    }
+  }
+}
+function awaitNoteCreate(folderId, timeoutMs = 8000) {
+  const ids = Object.values(notes)
+    .filter(n => n.folderId === folderId)
+    .map(n => n.id);
+  const minId = ids.length ? Math.max(...ids) : 0;
+  return new Promise((resolve, reject) => {
+    const entry = { folderId, minId, resolve, reject, timer: null };
+    entry.timer = setTimeout(() => {
+      const idx = pendingNoteCreates.indexOf(entry);
+      if (idx >= 0) pendingNoteCreates.splice(idx, 1);
+      reject(new Error("note-create timeout"));
+    }, timeoutMs);
+    pendingNoteCreates.push(entry);
+  });
+}
+
 function applyNoteUpdate(nu) {
   if (!nu) return;
   const type = nu.type;
@@ -2198,6 +2307,9 @@ function applyNoteUpdate(nu) {
     // nu.revision is the archived note-revision object (from u-note %history-archived)
     if (nu.revision) applyArchivedRevision({ revision: nu.revision, noteId: nu.id });
     return;
+  }
+  if (type === "note-created" && nu.note) {
+    notifyNoteCreated(nu.note);
   }
   loadNotes();
   if (type === "note-updated" && nu.id === activeNoteId) {
@@ -2814,27 +2926,52 @@ function triggerImport(isFolder) {
 
 // ── Markdown Preview ──────────────────────────────────────────────────────
 let previewMode = false;
+// Source offset of the [ xX] character for each rendered checkbox, in DOM order.
+// Populated by renderMarkdown; consumed by togglePreviewCheckbox.
+let previewCheckboxOffsets = [];
 
 function togglePreview() {
   previewMode = !previewMode;
   const editor = document.getElementById("editor");
   const preview = document.getElementById("preview");
-  const title = document.getElementById("note-title-input");
   const btn = document.getElementById("preview-btn");
   if (previewMode) {
     preview.innerHTML = renderMarkdown(editor.value);
-    title.style.display = "none";
     editor.style.display = "none";
     preview.style.display = "block";
     btn.style.color = "var(--accent)";
   } else {
-    title.style.display = "";
     editor.style.display = "block";
     preview.style.display = "none";
     btn.style.color = "";
     autosizeEditor();
   }
 }
+
+// Toggle the Nth task-list checkbox in the source markdown and re-render.
+function togglePreviewCheckbox(n) {
+  if (historyViewing) return;
+  const off = previewCheckboxOffsets[n];
+  if (off == null) return;
+  const editor = document.getElementById("editor");
+  const ch = editor.value[off];
+  if (ch !== " " && ch !== "x" && ch !== "X") return;
+  const flipped = ch === " " ? "x" : " ";
+  editor.value = editor.value.slice(0, off) + flipped + editor.value.slice(off + 1);
+  onEditorInput();
+  const preview = document.getElementById("preview");
+  if (preview) preview.innerHTML = renderMarkdown(editor.value);
+}
+
+document.addEventListener("change", (e) => {
+  const t = e.target;
+  if (!t || t.type !== "checkbox") return;
+  const idx = t.getAttribute("data-cb-index");
+  if (idx === null) return;
+  const preview = document.getElementById("preview");
+  if (!preview || !preview.contains(t)) return;
+  togglePreviewCheckbox(parseInt(idx, 10));
+});
 
 function renderMarkdown(src) {
   // escape HTML
@@ -2844,6 +2981,11 @@ function renderMarkdown(src) {
   let inCode = false, codeLang = "", codeLines = [];
   let inList = false, listType = "";
   let inBlockquote = false;
+  let cbIndex = 0;
+  previewCheckboxOffsets = [];
+  // Per-line start offsets into src (for mapping checkbox positions back to source).
+  const lineOffs = new Array(lines.length);
+  { let acc = 0; for (let k = 0; k < lines.length; k++) { lineOffs[k] = acc; acc += lines[k].length + 1; } }
 
   function flushList() {
     if (inList) { html += listType === "ul" ? "</ul>\n" : "</ol>\n"; inList = false; }
@@ -2897,8 +3039,12 @@ function renderMarkdown(src) {
       // checkbox
       const cbm = ulm[2].match(/^\[([ xX])\]\s*(.*)/);
       if (cbm) {
-        const checked = cbm[1] !== " " ? " checked disabled" : " disabled";
-        html += "<li><input type=\"checkbox\"" + checked + "> " + inline(cbm[2]) + "</li>\n";
+        const checked = cbm[1] !== " " ? " checked" : "";
+        const ro = historyViewing ? " disabled" : "";
+        const charOff = lineOffs[i] + (ulm[0].length - ulm[2].length) + 1;
+        previewCheckboxOffsets.push(charOff);
+        html += "<li class=\"task-item\"><input type=\"checkbox\" data-cb-index=\"" + cbIndex + "\"" + checked + ro + "> " + inline(cbm[2]) + "</li>\n";
+        cbIndex++;
       } else {
         html += "<li>" + inline(ulm[2]) + "</li>\n";
       }
@@ -3032,6 +3178,25 @@ async function selectNote(id) {
   document.getElementById("note-rev").textContent = `rev ${n.revision}`;
   document.title = `${n.title || "Untitled"} — Notes`;
   clearDirty();
+  // If a local draft exists from a prior session that was never saved,
+  // restore it. Only restore when it was based on a revision <= the
+  // current server revision (otherwise it's stale or already superseded).
+  const draft = readDraft(activeNotebookFlag, id);
+  if (draft && draft.baseRevision <= n.revision &&
+      (draft.title !== n.title || draft.body !== n.bodyMd)) {
+    document.getElementById("note-title-input").value = draft.title;
+    document.getElementById("editor").value = draft.body;
+    autosizeEditor();
+    if (previewMode) document.getElementById("preview").innerHTML = renderMarkdown(draft.body);
+    document.title = `${draft.title || "Untitled"} — Notes`;
+    dirty = true;
+    document.getElementById("save-status").textContent = "Unsaved draft restored";
+    if (saveTimer) clearTimeout(saveTimer);
+    if (!conflictActive) saveTimer = setTimeout(() => autoSave(), AUTOSAVE_DEBOUNCE_MS);
+  } else if (draft) {
+    // Stale or already-saved draft — clean up.
+    clearDraft(activeNotebookFlag, id);
+  }
   document.getElementById("overflow-note-section").style.display = "";
   updateBreadcrumb();
   renderBacklinks();
@@ -3929,7 +4094,63 @@ function acceptWikiAutocomplete() {
   onEditorInput();
 }
 
+// On Enter, continue the current line's list/task prefix. If the line is
+// just an empty prefix, strip it (break out of the list) instead of inserting.
+function maybeContinueListOnEnter(e, ta) {
+  if (e.key !== "Enter" || e.shiftKey || e.altKey || e.metaKey || e.ctrlKey || e.isComposing) return false;
+  const v = ta.value;
+  const s = ta.selectionStart;
+  if (s !== ta.selectionEnd) return false;
+  const lineStart = v.lastIndexOf("\n", s - 1) + 1;
+  const nlIdx = v.indexOf("\n", s);
+  const lineEnd = nlIdx < 0 ? v.length : nlIdx;
+  const line = v.slice(lineStart, lineEnd);
+
+  const taskRe = /^(\s*)([-*+])(\s+)\[([ xX])\](\s+)(.*)$/;
+  const bulletRe = /^(\s*)([-*+])(\s+)(.*)$/;
+  const orderedRe = /^(\s*)(\d+)([.)])(\s+)(.*)$/;
+
+  let prefix = null, content = null;
+  let m;
+  if ((m = line.match(taskRe))) {
+    prefix = m[1] + m[2] + m[3] + "[ ]" + m[5];
+    content = m[6];
+  } else if ((m = line.match(bulletRe))) {
+    prefix = m[1] + m[2] + m[3];
+    content = m[4];
+  } else if ((m = line.match(orderedRe))) {
+    const next = parseInt(m[2], 10) + 1;
+    prefix = m[1] + next + m[3] + m[4];
+    content = m[5];
+  } else {
+    return false;
+  }
+
+  // Don't intercept if the cursor is inside the prefix (let normal Enter split it).
+  const prefixEnd = lineStart + (line.length - content.length);
+  if (s < prefixEnd) return false;
+
+  // Empty prefix line — break out: remove the prefix, leave cursor on a blank line.
+  if (!content.trim()) {
+    e.preventDefault();
+    ta.value = v.slice(0, lineStart) + v.slice(lineEnd);
+    ta.selectionStart = ta.selectionEnd = lineStart;
+    onEditorInput();
+    return true;
+  }
+
+  // Continue: insert newline + same prefix at the cursor.
+  e.preventDefault();
+  const inserted = "\n" + prefix;
+  ta.value = v.slice(0, s) + inserted + v.slice(s);
+  const newCaret = s + inserted.length;
+  ta.selectionStart = ta.selectionEnd = newCaret;
+  onEditorInput();
+  return true;
+}
+
 document.getElementById("editor").addEventListener("keydown", (e) => {
+  if (maybeContinueListOnEnter(e, e.target)) return;
   if (!wikiAutocompleteOpen) return;
   if (e.key === "ArrowDown") {
     e.preventDefault(); e.stopPropagation();
@@ -4061,18 +4282,53 @@ async function newNote() {
   if (!activeFolderId) { alert("No folder selected"); return; }
   if (!await confirmDirty()) return;
 
-  await pokeNotebook({ type: "create-note", folder: activeFolderId, title: "Untitled", body: "" });
-
-  // Reload, select the newest note, and focus the editor
-  setTimeout(async () => {
-    await loadNotes();
-    const inFolder = Object.values(notes).filter(n => n.folderId === activeFolderId);
+  const targetFolder = activeFolderId;
+  // Listen for the resulting note-created event before pokeing, so we can't
+  // miss an echo that arrives faster than pokeAction's poke-ack resolves.
+  const waitForCreate = awaitNoteCreate(targetFolder).catch(() => null);
+  await pokeNotebook({ type: "create-note", folder: targetFolder, title: "Untitled", body: "" });
+  const created = await waitForCreate;
+  await loadNotes();
+  let pickId = created?.id;
+  if (pickId == null) {
+    const inFolder = Object.values(notes).filter(n => n.folderId === targetFolder);
     const newest = inFolder.sort((a,b) => b.id - a.id)[0];
-    if (newest) {
-      await selectNote(newest.id);
-      document.getElementById("editor").focus();
-    }
-  }, 300);
+    pickId = newest?.id;
+  }
+  if (pickId != null) {
+    await selectNote(pickId);
+    document.getElementById("editor").focus();
+  }
+}
+
+// ── Local-storage drafts ─────────────────────────────────────────────────
+// Mirror every keystroke to localStorage keyed by [flag, noteId] so a
+// crash / accidental close / lost connection between autoSave intervals
+// doesn't lose work. The draft is cleared once a successful save lands.
+// Keyed against `baseRevision` (the savedRevision at write time) so we can
+// detect drafts that have already been superseded by a remote edit.
+const DRAFT_KEY_PREFIX = "notes-draft";
+function draftKey(flag, noteId) { return `${DRAFT_KEY_PREFIX}|${flag}|${noteId}`; }
+function writeDraft() {
+  if (!activeNotebookFlag || !activeNoteId) return;
+  try {
+    localStorage.setItem(draftKey(activeNotebookFlag, activeNoteId), JSON.stringify({
+      title: document.getElementById("note-title-input").value,
+      body: document.getElementById("editor").value,
+      baseRevision: savedRevision,
+      ts: Date.now()
+    }));
+  } catch {}
+}
+function clearDraft(flag, noteId) {
+  if (!flag || noteId == null) return;
+  try { localStorage.removeItem(draftKey(flag, noteId)); } catch {}
+}
+function readDraft(flag, noteId) {
+  try {
+    const raw = localStorage.getItem(draftKey(flag, noteId));
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
 }
 
 // ── Auto-save ────────────────────────────────────────────────────────────
@@ -4096,6 +4352,7 @@ function onEditorInput() {
   dirty = true;
   autosizeEditor();
   document.getElementById("save-status").textContent = "";
+  writeDraft();
   if (saveTimer) clearTimeout(saveTimer);
   // Don't arm autoSave while a conflict is unresolved — user must resolve first
   if (!conflictActive) saveTimer = setTimeout(() => autoSave(), AUTOSAVE_DEBOUNCE_MS);
@@ -4113,27 +4370,32 @@ async function triggerAutoCreate() {
     return;
   }
   autoCreating = true;
-  await pokeNotebook({ type: "create-note", folder: activeFolderId, title: "Untitled", body: "" });
-  setTimeout(async () => {
-    // Capture what the user typed during the create roundtrip
-    const pendingBody = editor.value;
-    const pendingTitle = titleInput.value;
-    await loadNotes();
-    const inFolder = Object.values(notes).filter(n => n.folderId === activeFolderId);
+  const targetFolder = activeFolderId;
+  const waitForCreate = awaitNoteCreate(targetFolder).catch(() => null);
+  await pokeNotebook({ type: "create-note", folder: targetFolder, title: "Untitled", body: "" });
+  const created = await waitForCreate;
+  // Capture what the user typed during the create roundtrip
+  const pendingBody = editor.value;
+  const pendingTitle = titleInput.value;
+  await loadNotes();
+  let pickId = created?.id;
+  if (pickId == null) {
+    const inFolder = Object.values(notes).filter(n => n.folderId === targetFolder);
     const newest = inFolder.sort((a,b) => b.id - a.id)[0];
-    autoCreating = false;
-    if (!newest) return;
-    await selectNote(newest.id);
-    // selectNote wrote the server-side (empty) values; restore what they typed
-    editor.value = pendingBody;
-    titleInput.value = pendingTitle;
-    autosizeEditor();
-    editor.focus();
-    editor.selectionStart = editor.selectionEnd = editor.value.length;
-    dirty = true;
-    if (saveTimer) clearTimeout(saveTimer);
-    saveTimer = setTimeout(() => autoSave(), AUTOSAVE_DEBOUNCE_MS);
-  }, 300);
+    pickId = newest?.id;
+  }
+  autoCreating = false;
+  if (pickId == null) return;
+  await selectNote(pickId);
+  // selectNote wrote the server-side (empty) values; restore what they typed
+  editor.value = pendingBody;
+  titleInput.value = pendingTitle;
+  autosizeEditor();
+  editor.focus();
+  editor.selectionStart = editor.selectionEnd = editor.value.length;
+  dirty = true;
+  if (saveTimer) clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => autoSave(), AUTOSAVE_DEBOUNCE_MS);
 }
 
 let lastOwnSaveAt = 0;
@@ -4166,6 +4428,7 @@ async function autoSave() {
     }
     notes[activeNoteId] = { ...n, title, bodyMd: body, revision: savedRevision };
     dirty = false;
+    clearDraft(activeNotebookFlag, activeNoteId);
     document.getElementById("save-status").textContent = "Saved";
     document.getElementById("note-rev").textContent = `rev ${savedRevision}`;
     document.title = `${title || "Untitled"} — Notes`;
@@ -4333,6 +4596,7 @@ async function deleteNote() {
 
   await pokeNoteAction(activeNoteId, { type: "delete" });
 
+  clearDraft(activeNotebookFlag, activeNoteId);
   delete notes[activeNoteId];
   activeNoteId = null;
   clearEditor();
@@ -4529,11 +4793,11 @@ function openModal(type) {
         so you can read and edit them with any Markdown editor.
       </p>
       <p style="font-size:12px;color:var(--text-muted);line-height:1.5;margin-bottom:14px;opacity:0.8">
-        Downloads coming soon — check
-        <a href="https://github.com/arthyn/notes-prototype/releases" target="_blank" style="color:var(--accent)">GitHub Releases</a>
-        for the latest .dmg.
+        Universal macOS build (Apple Silicon + Intel). The .dmg is unsigned — on first launch
+        macOS will refuse to open it; right-click the app → Open → Open anyway.
       </p>
       <div class="modal-actions">
+        <a class="btn btn-primary" href="https://nyc3.digitaloceanspaces.com/hmillerdev/notes/2026.5.02..02.47.11-Notes%20Sync_0.2.0_universal.dmg" target="_blank" rel="noopener">Download for macOS (v0.2.0)</a>
         <button class="btn btn-secondary" onclick="closeModal()">Close</button>
       </div>
     `;
@@ -5012,23 +5276,95 @@ document.addEventListener("keydown", e => {
 // ── Markdown formatting (⌘B / ⌘I / ⌘K) ────────────────────────────────────
 // Toggle a single-line prefix ("> ", "- ", etc.) on the line containing the
 // caret. Add it if absent, remove if present, keep caret sensible.
+// Toggle a literal prefix on the current line — or on every line in the
+// selection. Smart-toggle: if every non-empty selected line already starts
+// with the prefix, strip; otherwise add to all.
 function toggleLinePrefix(ta, prefix) {
   const v = ta.value;
   const s = ta.selectionStart;
-  const lineStart = v.lastIndexOf("\n", s - 1) + 1;
-  const nlIdx = v.indexOf("\n", s);
-  const lineEnd = nlIdx < 0 ? v.length : nlIdx;
-  const line = v.slice(lineStart, lineEnd);
-  let newLine, newCaret;
-  if (line.startsWith(prefix)) {
-    newLine = line.slice(prefix.length);
-    newCaret = Math.max(lineStart, s - prefix.length);
+  const e = ta.selectionEnd;
+  const blockStart = v.lastIndexOf("\n", s - 1) + 1;
+  const searchFrom = e > s && v[e - 1] === "\n" ? e - 1 : e;
+  const nlEnd = v.indexOf("\n", searchFrom);
+  const blockEnd = nlEnd < 0 ? v.length : nlEnd;
+  const block = v.slice(blockStart, blockEnd);
+  const lines = block.split("\n");
+
+  const nonEmpty = lines.filter(l => l.trim());
+  const allHave = nonEmpty.length > 0 && nonEmpty.every(l => l.startsWith(prefix));
+
+  const newLines = lines.map(l => {
+    if (allHave) {
+      return l.startsWith(prefix) ? l.slice(prefix.length) : l;
+    }
+    if (!l.trim()) return l;
+    return l.startsWith(prefix) ? l : prefix + l;
+  });
+
+  const newBlock = newLines.join("\n");
+  ta.value = v.slice(0, blockStart) + newBlock + v.slice(blockEnd);
+
+  if (s === e && lines.length === 1) {
+    const delta = newBlock.length - block.length;
+    const newCaret = Math.max(blockStart, s + delta);
+    ta.selectionStart = ta.selectionEnd = newCaret;
   } else {
-    newLine = prefix + line;
-    newCaret = s + prefix.length;
+    ta.selectionStart = blockStart;
+    ta.selectionEnd = blockStart + newBlock.length;
   }
-  ta.value = v.slice(0, lineStart) + newLine + v.slice(lineEnd);
-  ta.selectionStart = ta.selectionEnd = newCaret;
+  onEditorInput();
+}
+
+// Toggle a task-list prefix across every line in the current selection
+// (or the cursor's line if there's no selection).
+//   bare line                → "- [ ] " + line
+//   "- " or "* " or "+ "     → replace marker with "- [ ] "
+//   "- [ ] " or "- [x] " etc → strip back to bare line
+// Bulk rule: if every non-empty selected line is already a task, strip;
+// otherwise, add task prefixes to all lines.
+function toggleTaskPrefix(ta) {
+  const v = ta.value;
+  const s = ta.selectionStart;
+  const e = ta.selectionEnd;
+  const blockStart = v.lastIndexOf("\n", s - 1) + 1;
+  // If the selection ends exactly at a newline, don't pull in the next line.
+  const searchFrom = e > s && v[e - 1] === "\n" ? e - 1 : e;
+  const nlEnd = v.indexOf("\n", searchFrom);
+  const blockEnd = nlEnd < 0 ? v.length : nlEnd;
+  const block = v.slice(blockStart, blockEnd);
+  const lines = block.split("\n");
+
+  const taskRe = /^(\s*)([-*+])\s+\[[ xX]\]\s/;
+  const bulletRe = /^(\s*)([-*+])\s/;
+
+  const nonEmpty = lines.filter(l => l.trim());
+  const allTasks = nonEmpty.length > 0 && nonEmpty.every(l => taskRe.test(l));
+
+  const newLines = lines.map(l => {
+    if (allTasks) {
+      const m = l.match(taskRe);
+      return m ? l.slice(m[0].length) : l;
+    }
+    if (!l.trim()) return l;
+    if (taskRe.test(l)) return l;
+    const bm = l.match(bulletRe);
+    if (bm) return bm[1] + "- [ ] " + l.slice(bm[0].length);
+    return "- [ ] " + l;
+  });
+
+  const newBlock = newLines.join("\n");
+  ta.value = v.slice(0, blockStart) + newBlock + v.slice(blockEnd);
+
+  if (s === e && lines.length === 1) {
+    // Single line, no selection — preserve cursor position, adjusted by delta.
+    const delta = newBlock.length - block.length;
+    const newCaret = Math.max(blockStart, s + delta);
+    ta.selectionStart = ta.selectionEnd = newCaret;
+  } else {
+    // Multi-line or actual selection — select the rewritten block.
+    ta.selectionStart = blockStart;
+    ta.selectionEnd = blockStart + newBlock.length;
+  }
   onEditorInput();
 }
 
@@ -5433,6 +5769,7 @@ function formatMarkdown(kind) {
   if (kind === "heading") { cycleHeading(ta); return; }
   if (kind === "quote")   { toggleLinePrefix(ta, "> "); return; }
   if (kind === "list")    { toggleLinePrefix(ta, "- "); return; }
+  if (kind === "task")    { toggleTaskPrefix(ta); return; }
   const v = ta.value;
   let s = ta.selectionStart, e = ta.selectionEnd;
   let sel = v.slice(s, e);

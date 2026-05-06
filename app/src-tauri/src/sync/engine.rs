@@ -8,7 +8,7 @@ use crate::commands::{AppConfig, NotebookInfo};
 use crate::fs::watcher::FsWatcher;
 use crate::urbit::channel::{EyreChannel, SseMessage};
 use crate::urbit::client::{UrbitClient, UrbitError};
-use crate::urbit::types::{Event, Response};
+use crate::urbit::types::{Event, FolderEvent, NoteEvent, Response};
 
 use super::conflict;
 use super::local_to_ship::{self, FsChange};
@@ -220,6 +220,7 @@ impl SyncEngine {
                     ship_to_local::initial_sync(
                         client,
                         flag,
+                        entry.notebook.id,
                         &entry.notebook.title,
                         &sync_root,
                         &mut state,
@@ -323,21 +324,20 @@ async fn run_sync_loop(
             // Handle SSE events from ship (only if still connected)
             msg = sse_rx.recv(), if sse_alive => {
                 match msg {
-                    Some(SseMessage::Response(Response::Snapshot { host, flag_name })) => {
+                    Some(SseMessage::Response(Response::Snapshot { host, flag_name, .. })) => {
                         info!("Received snapshot for {}/{}", host, flag_name);
                         let _ = activity.send(format!("Connected to {}/{}", host, flag_name)).await;
                     }
-                    Some(SseMessage::Response(Response::Update { update })) => {
+                    Some(SseMessage::Response(Response::Update { host, flag_name, update, .. })) => {
                         let event_desc = describe_event(&update);
-                        let notebook_id = event_notebook_id(&update);
-                        let flag = {
+                        let flag = format!("{}/{}", host, flag_name);
+
+                        let known = {
                             let s = state.read().await;
-                            s.notebooks.iter()
-                                .find(|(_, nb)| nb.notebook_id == notebook_id)
-                                .map(|(f, _)| f.clone())
+                            s.notebooks.contains_key(&flag)
                         };
 
-                        if let Some(flag) = flag {
+                        if known {
                             let mut s = state.write().await;
                             match ship_to_local::apply_event(&update, &flag, &sync_root, &mut s) {
                                 Ok(written_paths) => {
@@ -351,7 +351,7 @@ async fn run_sync_loop(
                                 }
                             }
                         } else {
-                            warn!("SSE event for unknown notebook_id {}", notebook_id);
+                            warn!("SSE event for unknown notebook {}", flag);
                         }
                     }
                     Some(SseMessage::Error(err)) => {
@@ -429,41 +429,32 @@ async fn run_sync_loop(
     info!("Sync loop exited");
 }
 
-/// Extract the notebook_id from an event
-fn event_notebook_id(event: &Event) -> u64 {
-    match event {
-        Event::NotebookCreated { notebook, .. } => notebook.id,
-        Event::NotebookRenamed { notebook_id, .. } => *notebook_id,
-        Event::MemberJoined { notebook_id, .. } => *notebook_id,
-        Event::MemberLeft { notebook_id, .. } => *notebook_id,
-        Event::FolderCreated { notebook_id, .. } => *notebook_id,
-        Event::FolderRenamed { notebook_id, .. } => *notebook_id,
-        Event::FolderMoved { notebook_id, .. } => *notebook_id,
-        Event::FolderDeleted { notebook_id, .. } => *notebook_id,
-        Event::NoteCreated { notebook_id, .. } => *notebook_id,
-        Event::NoteRenamed { notebook_id, .. } => *notebook_id,
-        Event::NoteMoved { notebook_id, .. } => *notebook_id,
-        Event::NoteDeleted { notebook_id, .. } => *notebook_id,
-        Event::NoteUpdated { notebook_id, .. } => *notebook_id,
-    }
-}
-
 /// Human-readable description of an SSE event
 fn describe_event(event: &Event) -> String {
     match event {
-        Event::NoteCreated { note, .. } => format!("Created {}", note.title),
-        Event::NoteUpdated { note, .. } => format!("Updated {}", note.title),
-        Event::NoteRenamed { title, .. } => format!("Renamed to {}", title),
-        Event::NoteDeleted { .. } => "Deleted note".to_string(),
-        Event::NoteMoved { .. } => "Moved note".to_string(),
-        Event::FolderCreated { folder, .. } => format!("Created folder {}", folder.name),
-        Event::FolderRenamed { name, .. } => format!("Renamed folder to {}", name),
-        Event::FolderDeleted { .. } => "Deleted folder".to_string(),
-        Event::FolderMoved { .. } => "Moved folder".to_string(),
+        Event::NoteUpdate { note_update } => match note_update {
+            NoteEvent::NoteCreated { note, .. } => format!("Created {}", note.title),
+            NoteEvent::NoteUpdated { note, .. } => format!("Updated {}", note.title),
+            NoteEvent::NoteDeleted { .. } => "Deleted note".to_string(),
+            NoteEvent::NotePublished { .. } => "Published note".to_string(),
+            NoteEvent::NoteUnpublished { .. } => "Unpublished note".to_string(),
+            NoteEvent::NoteHistoryArchived { .. } => "Archived revision".to_string(),
+        },
+        Event::FolderUpdate { folder_update } => match folder_update {
+            FolderEvent::FolderCreated { folder, .. } => format!("Created folder {}", folder.name),
+            FolderEvent::FolderUpdated { folder, .. } => format!("Updated folder {}", folder.name),
+            FolderEvent::FolderDeleted { .. } => "Deleted folder".to_string(),
+        },
         Event::NotebookCreated { notebook, .. } => format!("Created notebook {}", notebook.title),
-        Event::NotebookRenamed { title, .. } => format!("Renamed notebook to {}", title),
+        Event::NotebookUpdated { notebook } => format!("Updated notebook {}", notebook.title),
+        Event::NotebookDeleted {} => "Deleted notebook".to_string(),
+        Event::NotebookVisibilityChanged { visibility } => {
+            format!("Visibility → {}", visibility)
+        }
         Event::MemberJoined { who, .. } => format!("{} joined", who),
-        Event::MemberLeft { who, .. } => format!("{} left", who),
+        Event::MemberLeft { who } => format!("{} left", who),
+        Event::InviteReceived { from, .. } => format!("Invite from {}", from),
+        Event::InviteRemoved {} => "Invite removed".to_string(),
     }
 }
 

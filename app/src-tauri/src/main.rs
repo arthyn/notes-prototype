@@ -91,7 +91,7 @@ fn main() {
             }
 
             // Pre-create the popover window (hidden) so first open is instant
-            let _window = tauri::WebviewWindowBuilder::new(
+            let popover_window = tauri::WebviewWindowBuilder::new(
                 app,
                 "popover",
                 tauri::WebviewUrl::App("index.html".into()),
@@ -105,6 +105,14 @@ fn main() {
             .visible(false)
             .build()
             .expect("failed to pre-create popover window");
+
+            // Hide the popover when it loses focus — standard menubar behavior
+            let popover_for_blur = popover_window.clone();
+            popover_window.on_window_event(move |event| {
+                if let tauri::WindowEvent::Focused(false) = event {
+                    let _ = popover_for_blur.hide();
+                }
+            });
 
             // No native tray menu — the popover UI has Quit built in
             if let Some(tray) = app.tray_by_id("main") {

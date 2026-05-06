@@ -116,12 +116,14 @@ disconnectBtn.addEventListener("click", async () => {
   connected = false;
   updateConnectionUI();
   notebookSelect.classList.add("hidden");
+  saveNotebooksBtn.classList.add("hidden");
 });
 
 document.getElementById("quit-btn").addEventListener("click", async () => {
   await invoke("quit_app");
 });
 
+let lastConnected = null;
 function updateConnectionUI() {
   if (connected) {
     connectBtn.classList.add("hidden");
@@ -129,8 +131,6 @@ function updateConnectionUI() {
     statusDot.className = "dot connected";
     statusText.textContent = "Connected";
     shipInfo.classList.remove("hidden");
-    // Switch to status view when connected
-    showView(statusView);
   } else {
     connectBtn.classList.remove("hidden");
     connectBtn.disabled = false;
@@ -139,28 +139,45 @@ function updateConnectionUI() {
     statusDot.className = "dot disconnected";
     statusText.textContent = "Disconnected";
     shipInfo.classList.add("hidden");
-    // Show settings when not connected
-    showView(settingsView);
-    document.getElementById("back-btn").classList.add("hidden");
+  }
+  // Only auto-switch view on a connection-state transition,
+  // otherwise the 5s poll yanks the user off whatever view they navigated to.
+  if (lastConnected !== connected) {
+    if (connected) {
+      showView(statusView);
+      // Backend already has the config + auth; populate the picker so it's
+      // ready when the user opens settings (e.g. after auto-connect).
+      loadNotebooks();
+    } else {
+      showView(settingsView);
+      document.getElementById("back-btn").classList.add("hidden");
+    }
+    lastConnected = connected;
   }
 }
 
 // ── Notebooks ────────────────────────────────────────────────────────────────
 async function loadNotebooks() {
   try {
-    const notebooks = await invoke("get_notebooks");
+    const [notebooks, config] = await Promise.all([
+      invoke("get_notebooks"),
+      invoke("get_config"),
+    ]);
+    const selected = new Set(config.selected_notebooks || []);
     notebookList.innerHTML = "";
     notebooks.forEach(nb => {
       const div = document.createElement("div");
       div.className = "notebook-item";
+      const checked = selected.has(nb.flag) ? " checked" : "";
       div.innerHTML = `
-        <input type="checkbox" value="${nb.flag}" checked>
+        <input type="checkbox" value="${nb.flag}"${checked}>
         <span>${nb.title}</span>
         <span class="host">${nb.host}</span>
       `;
       notebookList.appendChild(div);
     });
     notebookSelect.classList.remove("hidden");
+    saveNotebooksBtn.classList.remove("hidden");
   } catch (e) {
     console.error("Failed to load notebooks:", e);
   }

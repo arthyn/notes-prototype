@@ -257,7 +257,7 @@
 +$  notebook-summary  [=flag =notebook =visibility]
 ::
 ::  $notebook-detail: one item from /v0/notebook/~ship/name
-+$  notebook-detail   [=flag =notebook]
++$  notebook-detail   [=flag =notebook =visibility]
 ::
 ::  $member-record: one item from /v0/members list
 +$  member-record     [=ship =role]

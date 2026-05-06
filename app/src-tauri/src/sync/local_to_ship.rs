@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use serde_json::json;
+use serde_json::{json, Value};
 use tracing::{debug, info, warn};
 
 use crate::urbit::channel::EyreChannel;
@@ -18,6 +18,16 @@ pub enum FsChange {
     DirCreated(PathBuf),
     DirDeleted(PathBuf),
     DirRenamed { from: PathBuf, to: PathBuf },
+}
+
+/// Wrap a notebook-scoped action in the top-level a-notes envelope.
+///   { type: "notebook", flag: "<host>/<name>", action: <inner> }
+fn notebook_action(flag: &str, inner: Value) -> Value {
+    json!({
+        "type": "notebook",
+        "flag": flag,
+        "action": inner,
+    })
 }
 
 /// Process a local filesystem change and push it to the ship.
@@ -48,7 +58,7 @@ pub async fn handle_fs_change(
             // If the file is already tracked, treat as an update (even if
             // the event was "Created" — editors do atomic saves via
             // write-tmp-then-rename which macOS reports as Create).
-            if let Some((flag, notebook_id, note_sync)) = state.find_note_by_path(&rel) {
+            if let Some((flag, _notebook_id, note_sync)) = state.find_note_by_path(&rel) {
                 let content = std::fs::read_to_string(path)?;
                 let new_hash = content_hash(&content);
 
@@ -64,15 +74,18 @@ pub async fn handle_fs_change(
                 // Send expectedRevision as 0 to force-update — the
                 // subscriber's local revision is unreliable (may be stale).
                 // The host agent accepts 0 as "skip revision check".
-                let action = json!({
-                    "_flag": flag,
-                    "update-note": {
-                        "notebookId": notebook_id,
-                        "noteId": note_id,
-                        "bodyMd": content,
-                        "expectedRevision": 0
-                    }
-                });
+                let action = notebook_action(
+                    &flag,
+                    json!({
+                        "type": "note",
+                        "id": note_id,
+                        "action": {
+                            "type": "update",
+                            "body": content,
+                            "expectedRevision": 0,
+                        },
+                    }),
+                );
 
                 channel.poke(ship, "notes-action", action).await?;
                 info!("Pushed update for note {}", note_id);
@@ -100,7 +113,6 @@ pub async fn handle_fs_change(
             let notebook_dir = components[0];
             if let Some((flag, nb)) = state.find_notebook_by_dir(notebook_dir) {
                 let flag = flag.to_string();
-                let notebook_id = nb.notebook_id;
 
                 // Find the folder ID from the path
                 let folder_path_str = if components.len() > 2 {
@@ -131,15 +143,15 @@ pub async fn handle_fs_change(
                     .unwrap_or_else(|| "Untitled".to_string());
                 let content = std::fs::read_to_string(path)?;
 
-                let action = json!({
-                    "_flag": flag,
-                    "create-note": {
-                        "notebookId": notebook_id,
-                        "folderId": folder_id,
+                let action = notebook_action(
+                    &flag,
+                    json!({
+                        "type": "create-note",
+                        "folder": folder_id,
                         "title": title,
-                        "bodyMd": content
-                    }
-                });
+                        "body": content,
+                    }),
+                );
 
                 channel.poke(ship, "notes-action", action).await?;
                 info!("Created note on ship: {} in folder {}", title, folder_id);
@@ -198,17 +210,18 @@ pub async fn handle_fs_change(
                 .to_string_lossy()
                 .to_string();
 
-            if let Some((flag, notebook_id, note_sync)) = state.find_note_by_path(&rel) {
+            if let Some((flag, _notebook_id, note_sync)) = state.find_note_by_path(&rel) {
                 let flag = flag.to_string();
                 let note_id = note_sync.note_id;
 
-                let action = json!({
-                    "_flag": flag,
-                    "delete-note": {
-                        "noteId": note_id,
-                        "notebookId": notebook_id
-                    }
-                });
+                let action = notebook_action(
+                    &flag,
+                    json!({
+                        "type": "note",
+                        "id": note_id,
+                        "action": { "type": "delete" },
+                    }),
+                );
 
                 channel.poke(ship, "notes-action", action).await?;
                 info!("Deleted note on ship: {}", note_id);
@@ -228,7 +241,7 @@ pub async fn handle_fs_change(
                 .to_string_lossy()
                 .to_string();
 
-            if let Some((flag, notebook_id, note_sync)) = state.find_note_by_path(&old_rel) {
+            if let Some((flag, _notebook_id, note_sync)) = state.find_note_by_path(&old_rel) {
                 let flag = flag.to_string();
                 let note_id = note_sync.note_id;
 
@@ -237,14 +250,17 @@ pub async fn handle_fs_change(
                     .map(|s| s.to_string_lossy().to_string())
                     .unwrap_or_else(|| "Untitled".to_string());
 
-                let action = json!({
-                    "_flag": flag,
-                    "rename-note": {
-                        "notebookId": notebook_id,
-                        "noteId": note_id,
-                        "title": new_title
-                    }
-                });
+                let action = notebook_action(
+                    &flag,
+                    json!({
+                        "type": "note",
+                        "id": note_id,
+                        "action": {
+                            "type": "rename",
+                            "title": new_title,
+                        },
+                    }),
+                );
 
                 channel.poke(ship, "notes-action", action).await?;
                 info!("Renamed note on ship: {} -> {}", note_id, new_title);
@@ -282,7 +298,6 @@ pub async fn handle_fs_change(
             let notebook_dir = components[0];
             if let Some((flag, nb)) = state.find_notebook_by_dir(notebook_dir) {
                 let flag = flag.to_string();
-                let notebook_id = nb.notebook_id;
 
                 // Find parent folder
                 let parent_path = if components.len() > 2 {
@@ -291,7 +306,7 @@ pub async fn handle_fs_change(
                     String::new()
                 };
 
-                let parent_folder_id = if parent_path.is_empty() {
+                let parent_folder_id: Option<u64> = if parent_path.is_empty() {
                     // Parent is the root folder
                     nb.folders
                         .values()
@@ -306,14 +321,14 @@ pub async fn handle_fs_change(
 
                 let folder_name = components.last().unwrap_or(&"");
 
-                let action = json!({
-                    "_flag": flag,
-                    "create-folder": {
-                        "notebookId": notebook_id,
-                        "parentFolderId": parent_folder_id,
-                        "name": folder_name
-                    }
-                });
+                let action = notebook_action(
+                    &flag,
+                    json!({
+                        "type": "create-folder",
+                        "parent": parent_folder_id,
+                        "name": folder_name,
+                    }),
+                );
 
                 channel.poke(ship, "notes-action", action).await?;
                 info!("Created folder on ship: {}", folder_name);
@@ -339,16 +354,18 @@ pub async fn handle_fs_change(
                 if let Some(folder) = nb.folders.values().find(|f| f.local_path == folder_rel) {
                     let flag = flag.to_string();
                     let folder_id = folder.folder_id;
-                    let notebook_id = nb.notebook_id;
 
-                    let action = json!({
-                        "_flag": flag,
-                        "delete-folder": {
-                            "notebookId": notebook_id,
-                            "folderId": folder_id,
-                            "recursive": true
-                        }
-                    });
+                    let action = notebook_action(
+                        &flag,
+                        json!({
+                            "type": "folder",
+                            "id": folder_id,
+                            "action": {
+                                "type": "delete",
+                                "recursive": true,
+                            },
+                        }),
+                    );
 
                     channel.poke(ship, "notes-action", action).await?;
                     info!("Deleted folder on ship: {}", folder_id);
@@ -381,21 +398,23 @@ pub async fn handle_fs_change(
                 if let Some(folder) = nb.folders.values().find(|f| f.local_path == folder_rel) {
                     let flag = flag.to_string();
                     let folder_id = folder.folder_id;
-                    let notebook_id = nb.notebook_id;
 
                     let new_name = to
                         .file_name()
                         .map(|s| s.to_string_lossy().to_string())
                         .unwrap_or_default();
 
-                    let action = json!({
-                        "_flag": flag,
-                        "rename-folder": {
-                            "notebookId": notebook_id,
-                            "folderId": folder_id,
-                            "name": new_name
-                        }
-                    });
+                    let action = notebook_action(
+                        &flag,
+                        json!({
+                            "type": "folder",
+                            "id": folder_id,
+                            "action": {
+                                "type": "rename",
+                                "name": new_name,
+                            },
+                        }),
+                    );
 
                     channel.poke(ship, "notes-action", action).await?;
                     info!("Renamed folder on ship: {} -> {}", folder_id, new_name);
