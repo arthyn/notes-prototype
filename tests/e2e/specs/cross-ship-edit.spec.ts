@@ -32,20 +32,19 @@ test.describe("@cross-ship edit propagation", () => {
     await expect(sub.page.locator(`.nb-item:has-text('${title}')`)).toBeVisible({ timeout: 15_000 });
     await sub.notes.selectNotebook(title);
 
-    // Sub creates a note and edits it
+    // Sub creates a note and edits it. Host is still in the same notebook
+    // from steps above, subscribed to its /stream — the new note should
+    // appear in host's middle-column list via the stream propagation,
+    // no re-navigation needed.
     const noteTitle = "Shared note";
     const noteBody = "first draft";
     await sub.notes.createNote(noteTitle);
     await sub.notes.editNoteBody(noteBody);
     await sub.notes.forceSave();
-
-    // Host: navigate into the same notebook, see the note
-    await page.goto(`/notes/`);
-    await notes.selectNotebook(title);
     await expect(page.locator(`.item-row:has-text('${noteTitle}')`)).toBeVisible({ timeout: 15_000 });
 
     // Sub edits the body; host's UI must update WITHOUT a manual refresh.
-    // We click the note on host first so the stream change drives it.
+    // Click the note on host first so the stream change drives the editor.
     await page.locator(`.item-row:has-text('${noteTitle}')`).click();
     const newBody = "updated content from subscriber";
     await sub.notes.editNoteBody(newBody);
