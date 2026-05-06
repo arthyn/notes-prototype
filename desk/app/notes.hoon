@@ -285,8 +285,11 @@
           ::  default: send command to host
         no-abet:(no-action:(no-abed:no-core flag) act)
       ::
-          %publish    (publish-note flag id.a-notebook.act html.n-act)
-          %unpublish  (unpublish-note flag id.a-notebook.act)
+          %publish
+        no-abet:(no-publish:(no-abed:no-core flag) id.a-notebook.act html.n-act)
+      ::
+          %unpublish
+        no-abet:(no-unpublish:(no-abed:no-core flag) id.a-notebook.act)
       ==
     ==
   ::
@@ -395,32 +398,6 @@
     ?.  (~(has by invites.state) flag)  cor
     =.  invites.state  (~(del by invites.state) flag)
     (give-inbox-removed flag)
-  ::
-  ::  +publish-note: store HTML for a hosted note so /notes/pub/... serves it.
-  ::  Host-only (only the notebook host's ship maintains its public URL).
-  ::  Local-only action. Requires edit permission and that the note exists.
-  ++  publish-note
-    |=  [=flag:n nid=@ud html=@t]
-    ^+  cor
-    ?>  =(src.bowl our.bowl)
-    ?>  =(ship.flag our.bowl)
-    =/  se  (se-abed:se-core flag)
-    ?>  (se-can-edit:se src.bowl)
-    ?>  (~(has by notes.notebook-state.se) nid)
-    =.  published.state  (~(put by published.state) [flag nid] html)
-    cor
-  ::
-  ::  +unpublish-note: remove a previously-published note's HTML.
-  ::  Same host-only / permission semantics as +publish-note.
-  ++  unpublish-note
-    |=  [=flag:n nid=@ud]
-    ^+  cor
-    ?>  =(src.bowl our.bowl)
-    ?>  =(ship.flag our.bowl)
-    =/  se  (se-abed:se-core flag)
-    ?>  (se-can-edit:se src.bowl)
-    =.  published.state  (~(del by published.state) [flag nid])
-    cor
   --
 ::
 ::  +serve-http: dispatch an HTTP request to the right responder.
@@ -1372,6 +1349,24 @@
     =.  gone  &
     %-  emit
     [%pass no-sub-wire %agent [ship.flag %notes] %leave ~]
+  ::
+  ::  +no-publish: cache HTML for a note in this notebook so this ship's
+  ::  /notes/pub/<flag>/<note-id> serves it. Self-check is enforced at the
+  ::  action-poke layer (?> =(our.bowl src.bowl)); no-abed has already
+  ::  validated that the notebook exists. No further permission gating —
+  ::  publishing is a per-ship cache write, not an authority assertion.
+  ++  no-publish
+    |=  [nid=@ud html=@t]
+    ^+  no-core
+    =.  published.state  (~(put by published.state) [flag nid] html)
+    no-core
+  ::
+  ::  +no-unpublish: remove a previously-published note's cached HTML.
+  ++  no-unpublish
+    |=  nid=@ud
+    ^+  no-core
+    =.  published.state  (~(del by published.state) [flag nid])
+    no-core
   ::
   ::  +no-agent: handle sign from host subscription
   ++  no-agent
