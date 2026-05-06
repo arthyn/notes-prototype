@@ -54,11 +54,13 @@ export const test = base.extend<{
     // Enable SSE tracing — the FE checks localStorage.e2e-log-sse on
     // every event and console.log(...)s it; attachConsole pipes those
     // through to the test runner so failures show what arrived.
-    if (process.env.E2E_TRACE === "1") {
-      await page.evaluate(() => {
-        try { localStorage.setItem("e2e-log-sse", "1"); } catch {}
-      });
-    }
+    // Always set the FE-side log flag so console.log("[sse]", …) lands
+    // in the browser's console (visible in Playwright UI's Console tab).
+    // E2E_TRACE=1 separately decides whether to pipe browser console
+    // through to the test runner output.
+    await page.evaluate(() => {
+      try { localStorage.setItem("e2e-log-sse", "1"); } catch {}
+    });
     // Wait for connect() to populate window.SHIP — pokes before /~/name
     // resolves carry ship:"" and Eyre 400s the channel PUT. The bootstrap
     // exposes window.__notesGetShip() once SHIP is set.
