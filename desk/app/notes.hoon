@@ -1368,17 +1368,20 @@
     =.  published  (~(del by published) [flag nid])
     no-core
   ::
-  ::  +no-agent: handle sign from host subscription
+  ::  +no-agent: handle sign on the [%notes %sub ship name ~] wire.
+  ::  Used by both pub and sub: when we host (pub), self-pokes from the
+  ::  action handler flow back as %poke-ack on this wire; when we sub,
+  ::  the host sends %fact / %kick / %watch-ack here.
   ++  no-agent
     |=  =sign:agent:gall
     ^+  no-core
-    ?>  ?=(%sub -.net)
     ?+  -.sign  no-core
         %fact
       =/  =response:n  !<(response:n q.cage.sign)
       (no-response response)
     ::
         %kick
+      ?.  ?=(%sub -.net)  no-core
       %-  emit
       :*  %pass
           no-sub-wire
@@ -1390,7 +1393,7 @@
     ::
         %watch-ack
       ?~  p.sign  no-core
-      ?>  ?=(%sub -.net)
+      ?.  ?=(%sub -.net)  no-core
       =.  net  net(init |)
       ::  Schedule a retry. The host (or network) may have transiently
       ::  failed; without this, a single bad watch-ack leaves the
