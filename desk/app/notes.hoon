@@ -308,7 +308,7 @@
       ::  + role logic. All other commands assume the sender is already
       ::  a member; se-poke arms re-check via se-can-edit/se-is-owner.
       ?>  =(ship.flag our.bowl)
-      ?>  (~(has by books.state) flag)
+      ?>  (~(has by books) flag)
       se-abet:(se-poke:(se-abed:se-core flag) [flag c-notebook.cmd])
     ==
   ==
@@ -318,14 +318,14 @@
     |=  =flag:n
     ^+  cor
     ?<  =(our.bowl ship.flag)
-    ?<  (~(has by books.state) flag)
+    ?<  (~(has by books) flag)
     =/  placeholder-net=net:n  [%sub *@da |]
     =/  =notebook:n
       [0 '' ship.flag *@da *@da ship.flag]
     =/  placeholder-nb-state=notebook-state:n
       [notebook ~ %private ~ ~ ~]
-    =.  books.state
-      (~(put by books.state) flag [placeholder-net placeholder-nb-state])
+    =.  books
+      (~(put by books) flag [placeholder-net placeholder-nb-state])
     ::  send %member-join command to host (wrapped in c-notes %notebook arm)
     %-  emit
     :+  %pass
@@ -338,7 +338,7 @@
   ++  leave-remote
     |=  =flag:n
     ^+  cor
-    ?>  (~(has by books.state) flag)
+    ?>  (~(has by books) flag)
     =.  cor
       %-  emit
       :+  %pass
@@ -353,7 +353,7 @@
     ^+  cor
     ?>  =(ship.flag our.bowl)
     =/  entry=[* =notebook-state:n]
-      (~(got by books.state) flag)
+      (~(got by books) flag)
     ::  pre-add via se-core (also enforces ownership)
     =.  cor
       =/  cmd=c-cmd:n  [flag [%invite who]]
@@ -374,10 +374,10 @@
     ^+  cor
     ?<  =(from our.bowl)
     ?>  =(from ship.flag)
-    ?:  (~(has by books.state) flag)  cor
-    ?:  (~(has by invites.state) flag)  cor
+    ?:  (~(has by books) flag)  cor
+    ?:  (~(has by invites) flag)  cor
     =/  info=invite-info:n  [from now.bowl title]
-    =.  invites.state  (~(put by invites.state) flag info)
+    =.  invites  (~(put by invites) flag info)
     (give-inbox-received flag from now.bowl title)
   ::
   ::  +handle-accept-invite: user accepted a pending invite
@@ -385,9 +385,9 @@
     |=  =flag:n
     ^+  cor
     ?>  =(src.bowl our.bowl)
-    =.  invites.state  (~(del by invites.state) flag)
+    =.  invites  (~(del by invites) flag)
     =.  cor  (give-inbox-removed flag)
-    ?:  (~(has by books.state) flag)  cor
+    ?:  (~(has by books) flag)  cor
     (join-remote flag)
   ::
   ::  +handle-decline-invite: user declined a pending invite
@@ -395,8 +395,8 @@
     |=  =flag:n
     ^+  cor
     ?>  =(src.bowl our.bowl)
-    ?.  (~(has by invites.state) flag)  cor
-    =.  invites.state  (~(del by invites.state) flag)
+    ?.  (~(has by invites) flag)  cor
+    =.  invites  (~(del by invites) flag)
     (give-inbox-removed flag)
   --
 ::
@@ -431,7 +431,7 @@
     ?~  nid-u=(slaw %ud i.t.t.pax)  ~
     ?:  =(0 u.nid-u)  ~
     =/  =flag:n  [u.ship-u `@tas`i.t.pax]
-    (~(get by published.state) [flag u.nid-u])
+    (~(get by published) [flag u.nid-u])
   ::  /notes/share/~ship/name → serve the share-redirect page
   =/  share-html=(unit @t)
     ?.  =("/notes/share/" (scag 13 url-tape))  ~
@@ -489,7 +489,7 @@
     ::  /x/v0/notebooks — list all notebooks (cross-cutting, no flag)
       [%x %v0 %notebooks ~]
     =/  summaries=(list notebook-summary:n)
-      %+  murn  ~(tap by books.state)
+      %+  murn  ~(tap by books)
       |=  [=flag:n [* =notebook-state:n]]
       ?.  (can-view-flag flag src.bowl)  ~
       `[flag [notebook visibility]:notebook-state]
@@ -497,14 +497,14 @@
     ::  /x/v0/published — list of {host, flagName, noteId} for each published note
       [%x %v0 %published ~]
     =/  pub-records=(list published-record:n)
-      %+  turn  ~(tap by published.state)
+      %+  turn  ~(tap by published)
       |=  [[=flag:n note-id=@ud] *]
       [flag note-id]
     ``notes-published+!>(pub-records)
     ::  /x/v0/invites — pending invites we've received
       [%x %v0 %invites ~]
     =/  inv-records=(list invite-record:n)
-      %+  turn  ~(tap by invites.state)
+      %+  turn  ~(tap by invites)
       |=  [=flag:n info=invite-info:n]
       [flag info]
     ``notes-invites+!>(inv-records)
@@ -514,7 +514,7 @@
     ::  /x/v0/<kind>/<ship>/<name>[/<rest>] — delegate to no-peek
       [%x %v0 kind=@ ship=@ name=@ rest=*]
     =/  =flag:n  [(slav %p ship.pole) `@tas`name.pole]
-    ?~  (~(get by books.state) flag)  ~
+    ?~  (~(get by books) flag)  ~
     (no-peek:(no-abed:no-core flag) kind.pole rest.pole)
   ==
 ::
@@ -525,7 +525,7 @@
       [%notes %sub ship=@ name=@ ~]
     =/  =flag:n
       [(slav %p ship.pole) `@tas`name.pole]
-    ?.  (~(has by books.state) flag)
+    ?.  (~(has by books) flag)
       cor
     no-abet:(no-agent:(no-abed:no-core flag) sign)
   ::
@@ -538,7 +538,7 @@
         ::  poke succeeded — host has added us, now subscribe
         no-abet:no-start-watch:(no-abed:no-core flag)
       ::  poke failed — remove placeholder from books
-      =.  books.state  (~(del by books.state) flag)
+      =.  books  (~(del by books) flag)
       cor
     ==
   ::
@@ -564,8 +564,8 @@
     ?+  pole  ~|(bad-arvo-wire+wire !!)
         [%notes %rewatch ship=@ name=@ ~]
       =/  =flag:n  [(slav %p ship.pole) `@tas`name.pole]
-      ?.  (~(has by books.state) flag)  cor
-      =/  entry=[=net:n *]  (~(got by books.state) flag)
+      ?.  (~(has by books) flag)  cor
+      =/  entry=[=net:n *]  (~(got by books) flag)
       ?.  ?=(%sub -.net.entry)  cor
       no-abet:no-start-watch:(no-abed:no-core flag)
     ==
@@ -652,7 +652,7 @@
 ++  get-book
   |=  =flag:n
   ^-  (unit [=net:n =notebook-state:n])
-  (~(get by books.state) flag)
+  (~(get by books) flag)
 ::
 ::  +strip-query: drop any query string from a URL tape (returns path portion only)
 ++  strip-query
@@ -677,7 +677,7 @@
   |=  nid=@ud
   ^-  flag:n
   =/  matches=(list flag:n)
-    %+  murn  ~(tap by books.state)
+    %+  murn  ~(tap by books)
     |=  [=flag:n [* =notebook-state:n]]
     ?:  =(nid id.notebook.notebook-state)
       `flag
@@ -717,7 +717,7 @@
     |=  act=action:n
     ^+  se-core
     ?>  ?=(%create-notebook -.act)
-    =/  nid=@ud  +(next-id.state)
+    =/  nid=@ud  +(next-id)
     =/  =flag:n  [our.bowl (slugify title.act nid)]
     se-core(flag flag)
   ::
@@ -726,7 +726,7 @@
     |=  =flag:n
     ^+  se-core
     ?>  =(ship.flag our.bowl)
-    ?~  entry=(~(get by books.state) flag)
+    ?~  entry=(~(get by books) flag)
       ~|(se-abed-not-found+flag !!)
     =/  [=net:n =notebook-state:n]  u.entry
     ?>  ?=(%pub -.net)
@@ -735,10 +735,10 @@
   ::  +se-abet: write back to cor
   ++  se-abet
     ^+  cor
-    =.  books.state
+    =.  books
       ?:  gone
-        (~(del by books.state) flag)
-      (~(put by books.state) flag [[%pub log] notebook-state])
+        (~(del by books) flag)
+      (~(put by books) flag [[%pub log] notebook-state])
     cor
   ::
   ++  se-area
@@ -803,13 +803,13 @@
     visibility.notebook-state
   ::
   ::  +se-create-notebook: handle %create-notebook action
-  ::  nid is +(next-id.state) — same value se-init used to build the flag slug;
+  ::  nid is +(next-id) — same value se-init used to build the flag slug;
   ::  state has not been modified between se-init and this call.
   ++  se-create-notebook
     |=  act=action:n
     ^+  se-core
     ?>  ?=(%create-notebook -.act)
-    =/  nid=@ud  +(next-id.state)
+    =/  nid=@ud  +(next-id)
     =/  rfid=@ud  +(nid)
     =/  =notebook:n
       [nid title.act [our now now our]:bowl]
@@ -821,10 +821,10 @@
           ~
           ~
       ==
-    =.  next-id.state  rfid
+    =.  next-id  rfid
     =.  notebook-state  nb-state
-    =.  books.state
-      (~(put by books.state) flag [[%pub *log:n] notebook-state])
+    =.  books
+      (~(put by books) flag [[%pub *log:n] notebook-state])
     =.  se-core  (emit notebooks-changed-card)
     (se-update [%created notebook %private])
   ::
@@ -866,9 +866,9 @@
     ?>  ?=(%delete -.c-notebook.cmd)
     ?>  (se-is-owner src.bowl)
     ::  clean up published entries for this notebook
-    =.  published.state
+    =.  published
       %-  malt
-      %+  skip  ~(tap by published.state)
+      %+  skip  ~(tap by published)
       |=  [k=[=flag:n note-id=@ud] v=@t]
       =(flag.k flag)
     ::  history and visibility live in notebook-state, deleted via gone flag
@@ -945,8 +945,8 @@
     ^+  se-core
     ?>  ?=(%create-folder -.c-notebook.cmd)
     ?>  (se-can-edit src.bowl)
-    =/  fid=@ud  +(next-id.state)
-    =.  next-id.state  fid
+    =/  fid=@ud  +(next-id)
+    =.  next-id  fid
     =/  =folder:n
       [fid id.notebook.notebook-state name.c-notebook.cmd parent.c-notebook.cmd [src now now src]:bowl]
     =.  folders.notebook-state
@@ -1028,8 +1028,8 @@
     =*  fid  folder.c-notebook.cmd
     =/  fld=folder:n
       (~(got by folders.notebook-state) fid)
-    =/  nid=@ud  +(next-id.state)
-    =.  next-id.state  nid
+    =/  nid=@ud  +(next-id)
+    =.  next-id  nid
     =/  =note:n
       :*  nid
           id.notebook.notebook-state
@@ -1176,8 +1176,8 @@
     =/  items=(list [title=@t body=@t])  notes.c-notebook.cmd
     |-  ^+  se-core
     ?~  items  se-core
-    =/  nid=@ud  +(next-id.state)
-    =.  next-id.state  nid
+    =/  nid=@ud  +(next-id)
+    =.  next-id  nid
     =/  =note:n
       :*  nid
           id.notebook.notebook-state
@@ -1212,8 +1212,8 @@
       $(items remaining.i.stack, fid folder-id.i.stack, stack t.stack)
     ?-  -.i.items
         %note
-      =/  nid=@ud  +(next-id.state)
-      =.  next-id.state  nid
+      =/  nid=@ud  +(next-id)
+      =.  next-id  nid
       =/  =note:n
         :*  nid
             nid-nb
@@ -1233,8 +1233,8 @@
       $(items t.items, se-core se-core)
     ::
         %folder
-      =/  new-fid=@ud  +(next-id.state)
-      =.  next-id.state  new-fid
+      =/  new-fid=@ud  +(next-id)
+      =.  next-id  new-fid
       =/  =folder:n
         [new-fid nid-nb name.i.items `fid [src now now src]:bowl]
       =.  folders.notebook-state
@@ -1298,17 +1298,17 @@
   ++  no-abed
     |=  =flag:n
     ^+  no-core
-    ?~  entry=(~(get by books.state) flag)
+    ?~  entry=(~(get by books) flag)
       ~|(no-abed-not-found+flag !!)
     =/  [=net:n =notebook-state:n]  u.entry
     no-core(flag flag, net net, notebook-state notebook-state)
   ::
   ++  no-abet
     ^+  cor
-    =.  books.state
+    =.  books
       ?:  gone
-        (~(del by books.state) flag)
-      (~(put by books.state) flag [net notebook-state])
+        (~(del by books) flag)
+      (~(put by books) flag [net notebook-state])
     cor
   ::
   ++  no-area
@@ -1358,14 +1358,14 @@
   ++  no-publish
     |=  [nid=@ud html=@t]
     ^+  no-core
-    =.  published.state  (~(put by published.state) [flag nid] html)
+    =.  published  (~(put by published) [flag nid] html)
     no-core
   ::
   ::  +no-unpublish: remove a previously-published note's cached HTML.
   ++  no-unpublish
     |=  nid=@ud
     ^+  no-core
-    =.  published.state  (~(del by published.state) [flag nid])
+    =.  published  (~(del by published) [flag nid])
     no-core
   ::
   ::  +no-agent: handle sign from host subscription
