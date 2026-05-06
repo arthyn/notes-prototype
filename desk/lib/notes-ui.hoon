@@ -2342,6 +2342,13 @@ function applyNoteUpdate(nu) {
 function handleEvent(msg) {
   if (!msg.json) return;
   const data = msg.json;
+  // E2E tracing: when localStorage.e2e-log-sse is "1", log every parsed
+  // SSE payload so the test harness can pipe it through page.on('console').
+  try {
+    if (localStorage.getItem("e2e-log-sse") === "1") {
+      console.log("[sse]", JSON.stringify(data));
+    }
+  } catch {}
 
   // New nested r-notes envelope
   if (data.type === "snapshot") {

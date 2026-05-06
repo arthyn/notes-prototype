@@ -4,6 +4,19 @@ import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+// Pipe browser console output to the test runner. Tagged with the page
+// label (host/sub) so cross-ship logs are distinguishable. Filtered by
+// E2E_TRACE=1 to avoid noise on green runs.
+function attachConsole(page: Page, label: string) {
+  if (process.env.E2E_TRACE !== "1") return;
+  page.on("console", (msg) => {
+    const t = msg.type();
+    if (t === "warning") return; // skip browser internals
+    console.log(`  [${label}:${t}] ${msg.text()}`);
+  });
+  page.on("pageerror", (err) => console.log(`  [${label}:err] ${err.message}`));
+}
+
 // Per-test helpers built on top of the standard `test` fixture. The
 // host page lands at /notes/ pre-authenticated via storageState.
 
@@ -35,8 +48,17 @@ export const test = base.extend<{
   cleanup: CleanupTracker;
 }>({
   notes: async ({ page }, use) => {
+    attachConsole(page, "host");
     await page.goto("/notes/");
     await dismissDisclaimer(page);
+    // Enable SSE tracing — the FE checks localStorage.e2e-log-sse on
+    // every event and console.log(...)s it; attachConsole pipes those
+    // through to the test runner so failures show what arrived.
+    if (process.env.E2E_TRACE === "1") {
+      await page.evaluate(() => {
+        try { localStorage.setItem("e2e-log-sse", "1"); } catch {}
+      });
+    }
     // Wait for connect() to populate window.SHIP — pokes before /~/name
     // resolves carry ship:"" and Eyre 400s the channel PUT. The bootstrap
     // exposes window.__notesGetShip() once SHIP is set.
@@ -350,8 +372,12 @@ export async function openSubscriberContext(browser: Browser): Promise<{
     storageState: authPath,
   });
   const page = await context.newPage();
+  attachConsole(page, "sub");
   await page.goto("/notes/");
   await dismissDisclaimer(page);
+  await page.evaluate(() => {
+    try { localStorage.setItem("e2e-log-sse", "1"); } catch {}
+  });
   await page.waitForFunction(
     () => typeof (window as any).__notesGetShip === "function" && (window as any).__notesGetShip() !== "",
     { timeout: 15_000 },
