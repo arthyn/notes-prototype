@@ -4,6 +4,19 @@ import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+// Pipe browser console output to the test runner. Tagged with the page
+// label (host/sub) so cross-ship logs are distinguishable. Filtered by
+// E2E_TRACE=1 to avoid noise on green runs.
+function attachConsole(page: Page, label: string) {
+  if (process.env.E2E_TRACE !== "1") return;
+  page.on("console", (msg) => {
+    const t = msg.type();
+    if (t === "warning") return; // skip browser internals
+    console.log(`  [${label}:${t}] ${msg.text()}`);
+  });
+  page.on("pageerror", (err) => console.log(`  [${label}:err] ${err.message}`));
+}
+
 // Per-test helpers built on top of the standard `test` fixture. The
 // host page lands at /notes/ pre-authenticated via storageState.
 
@@ -35,8 +48,26 @@ export const test = base.extend<{
   cleanup: CleanupTracker;
 }>({
   notes: async ({ page }, use) => {
+    attachConsole(page, "host");
     await page.goto("/notes/");
     await dismissDisclaimer(page);
+    // Enable SSE tracing — the FE checks localStorage.e2e-log-sse on
+    // every event and console.log(...)s it; attachConsole pipes those
+    // through to the test runner so failures show what arrived.
+    // Always set the FE-side log flag so console.log("[sse]", …) lands
+    // in the browser's console (visible in Playwright UI's Console tab).
+    // E2E_TRACE=1 separately decides whether to pipe browser console
+    // through to the test runner output.
+    await page.evaluate(() => {
+      try { localStorage.setItem("e2e-log-sse", "1"); } catch {}
+    });
+    // Wait for connect() to populate window.SHIP — pokes before /~/name
+    // resolves carry ship:"" and Eyre 400s the channel PUT. The bootstrap
+    // exposes window.__notesGetShip() once SHIP is set.
+    await page.waitForFunction(
+      () => typeof (window as any).__notesGetShip === "function" && (window as any).__notesGetShip() !== "",
+      { timeout: 15_000 },
+    );
     await use(new NotesPage(page));
   },
   cleanup: async ({}, use) => {
@@ -252,6 +283,11 @@ export class NotesPage {
     // would return either pre-save or post-save-clear.
     await this.page.keyboard.press(process.platform === "darwin" ? "Meta+s" : "Control+s");
     await expect(this.page.locator("#save-status")).toHaveText("Saved", { timeout: 15_000 });
+    // Local "Saved" only confirms the FE got its poke-ack — the host's
+    // se-update + propagation back via the stream subscription takes
+    // longer in the cross-ship case. Give the round-trip time to land
+    // before the test asserts on remote state.
+    await this.page.waitForTimeout(3000);
   }
 
   // ── Assertions ──────────────────────────────────────────────────────────
@@ -278,6 +314,18 @@ export class NotesPage {
       await dismissDisclaimer(this.page);
       // Brief wait for the sidebar to populate after boot/reload.
       await this.page.waitForTimeout(500);
+      // First, sweep any pending invite for this title — invite tests
+      // that fail before the sub accepts/declines leave the entry in
+      // invites.state. Decline via the FE function (a no-op if absent).
+      try {
+        await this.page.evaluate(async (t: string) => {
+          const w = window as any;
+          const list = await w.scry?.("/v0/invites").catch(() => []);
+          const inv = (list || []).find((i: any) => i.title === t);
+          if (!inv) return;
+          await w.declineInvite?.(`${inv.host}/${inv.flagName}`);
+        }, title);
+      } catch { /* best-effort */ }
       const item = this.page.locator(`.nb-item:has-text('${title}')`).first();
       if ((await item.count()) === 0) return;
       // dispatchEvent works for items past the fold (no actionability check).
@@ -331,7 +379,15 @@ export async function openSubscriberContext(browser: Browser): Promise<{
     storageState: authPath,
   });
   const page = await context.newPage();
+  attachConsole(page, "sub");
   await page.goto("/notes/");
   await dismissDisclaimer(page);
+  await page.evaluate(() => {
+    try { localStorage.setItem("e2e-log-sse", "1"); } catch {}
+  });
+  await page.waitForFunction(
+    () => typeof (window as any).__notesGetShip === "function" && (window as any).__notesGetShip() !== "",
+    { timeout: 15_000 },
+  );
   return { context, page, notes: new NotesPage(page), patp, url };
 }

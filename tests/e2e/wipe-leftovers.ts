@@ -38,15 +38,58 @@ async function listNotebooks(url: string, stateFile: string): Promise<Array<{ ho
   return data.map((n) => ({ host: n.host, flagName: n.flagName, title: n.notebook.title }));
 }
 
+async function listInvites(url: string, stateFile: string): Promise<Array<{ host: string; flagName: string; title: string }>> {
+  const browser = await chromium.launch();
+  const ctx = await browser.newContext({ baseURL: url, storageState: stateFile });
+  const r = await ctx.request.get("/~/scry/notes/v0/invites.json");
+  if (!r.ok()) { await ctx.close(); await browser.close(); return []; }
+  const data = (await r.json()) as Array<{ host: string; flagName: string; title: string }>;
+  await ctx.close();
+  await browser.close();
+  return data;
+}
+
 async function wipeShip(name: string, url: string, code: string) {
   console.log(`\n=== ${name} (${url}) ===`);
   const stateFile = await loginAndStoreState(name, url, code);
+  const allInvites = await listInvites(url, stateFile);
+  const inviteTargets = allInvites.filter((i) => i.title.startsWith("e2e-"));
   const all = await listNotebooks(url, stateFile);
   const targets = all.filter((n) => n.title.startsWith("e2e-"));
-  if (targets.length === 0) {
-    console.log("  no e2e- notebooks to wipe");
+  if (targets.length === 0 && inviteTargets.length === 0) {
+    console.log("  no e2e- notebooks or invites to wipe");
     return;
   }
+  if (inviteTargets.length > 0) {
+    console.log(`  declining ${inviteTargets.length} e2e- invite(s)…`);
+    const browser = await chromium.launch();
+    const ctx = await browser.newContext({ baseURL: url, storageState: stateFile });
+    const page = await ctx.newPage();
+    await page.goto("/notes/");
+    await page.evaluate(() => {
+      try { localStorage.setItem("alpha-disclaimer-acknowledged", "1"); } catch {}
+    });
+    await page.reload();
+    await page.waitForFunction(
+      () => typeof (window as any).__notesGetShip === "function" && (window as any).__notesGetShip() !== "",
+      { timeout: 15_000 },
+    ).catch(() => {});
+    for (const inv of inviteTargets) {
+      try {
+        await page.evaluate((flag) => {
+          // declineInvite is a top-level function in the FE
+          return (window as any).declineInvite?.(flag);
+        }, `${inv.host}/${inv.flagName}`);
+        console.log(`    declined: ${inv.title}`);
+        await page.waitForTimeout(200);
+      } catch (e) {
+        console.log(`    error declining ${inv.title}: ${(e as Error).message}`);
+      }
+    }
+    await ctx.close();
+    await browser.close();
+  }
+  if (targets.length === 0) return;
   console.log(`  wiping ${targets.length} e2e- notebook(s) via UI…`);
 
   const browser = await chromium.launch();

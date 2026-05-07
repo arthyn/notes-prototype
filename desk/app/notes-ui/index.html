@@ -1541,7 +1541,7 @@
       <svg class="icon brand-icon"><use href="#i-notebook"/></svg>
       <div class="brand-text">
         <span class="brand-name">Notes</span>
-        <span class="sidebar-version">alpha v0.11.0</span>
+        <span class="sidebar-version">alpha v0.12.0</span>
       </div>
       <button class="icon-btn sidebar-menu-btn" onclick="toggleSidebarMenu()" title="More"><svg class="icon"><use href="#i-menu"/></svg></button>
     </div>
@@ -1763,7 +1763,11 @@
 // ── State ──────────────────────────────────────────────────────────────────
 let BASE_URL = "";
 let SHIP = "";
-let channelId = "";
+// Eyre channel id: initialized eagerly so tests (and fast user clicks)
+// that fire a poke before connect()'s openChannel() runs don't PUT to
+// /~/channel/ (empty id) and get a 400. The channel comes into being
+// on the first PUT — picking the id here is just a name we'll use.
+let channelId = `notes-ui-${Date.now()}`;
 let eventSource = null;
 let sseState = "connected";  // "connected" | "reconnecting"
 let landscapeTheme = null;   // "light" | "dark" | null (unknown/auto)
@@ -1842,6 +1846,11 @@ async function connect() {
 
   document.getElementById("connect-panel").style.display = "none";
   setConnectionState("connected");
+
+  // Test harness probe: e2e fixtures wait on this to know SHIP is populated
+  // before issuing any pokes. Returns truthy after /~/name resolves; before
+  // that, SHIP is empty and pokes would carry ship:"" → 400 from Eyre.
+  window.__notesGetShip = () => SHIP;
 
   openChannel();
 
@@ -2120,6 +2129,14 @@ function startSSE() {
   if (eventSource) eventSource.close();
   eventSource = new EventSource(`${BASE_URL}/~/channel/${channelId}`, { withCredentials: true });
   eventSource.onmessage = (e) => {
+    // E2E tracing: log every raw SSE message — including poke-acks —
+    // so failures show the full timeline. Gated by localStorage so prod
+    // users don't get console spam.
+    try {
+      if (localStorage.getItem("e2e-log-sse") === "1") {
+        console.log("[sse]", e.data);
+      }
+    } catch {}
     try {
       const msg = JSON.parse(e.data);
       // Resolve/reject the matching outstanding pokeAction first; let
@@ -2324,6 +2341,13 @@ function applyNoteUpdate(nu) {
 function handleEvent(msg) {
   if (!msg.json) return;
   const data = msg.json;
+  // E2E tracing: when localStorage.e2e-log-sse is "1", log every parsed
+  // SSE payload so the test harness can pipe it through page.on('console').
+  try {
+    if (localStorage.getItem("e2e-log-sse") === "1") {
+      console.log("[sse]", JSON.stringify(data));
+    }
+  } catch {}
 
   // New nested r-notes envelope
   if (data.type === "snapshot") {
@@ -4374,9 +4398,6 @@ async function triggerAutoCreate() {
   const waitForCreate = awaitNoteCreate(targetFolder).catch(() => null);
   await pokeNotebook({ type: "create-note", folder: targetFolder, title: "Untitled", body: "" });
   const created = await waitForCreate;
-  // Capture what the user typed during the create roundtrip
-  const pendingBody = editor.value;
-  const pendingTitle = titleInput.value;
   await loadNotes();
   let pickId = created?.id;
   if (pickId == null) {
@@ -4386,6 +4407,12 @@ async function triggerAutoCreate() {
   }
   autoCreating = false;
   if (pickId == null) return;
+  // Capture what the user typed RIGHT BEFORE selectNote — selectNote
+  // overwrites the editor with server-side (empty) values, and previously
+  // we captured these earlier (before loadNotes), so any keystrokes typed
+  // during the loadNotes await were silently dropped on restore.
+  const pendingBody = editor.value;
+  const pendingTitle = titleInput.value;
   await selectNote(pickId);
   // selectNote wrote the server-side (empty) values; restore what they typed
   editor.value = pendingBody;

@@ -1,9 +1,9 @@
-/-  notes
-|_  =command:notes
+/-  n=notes
+|_  =command:n
 ++  grad  %noun
 ++  grab
   |%
-  ++  noun  command:notes
+  ++  noun  command:n
   --
 ++  grow
   |%

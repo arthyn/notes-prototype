@@ -1,3 +1,10 @@
+::  notes-ui: HTML/CSS/JS + PWA static assets bundled for the agent
+::
+|%
+::
+::  +index: full single-file HTML app served at /notes/ui and as the
+::  fallback for any non-asset /notes/* URL.
+++  index
 ^-  @t
 '''
 <!DOCTYPE html>
@@ -1543,7 +1550,7 @@
       <svg class="icon brand-icon"><use href="#i-notebook"/></svg>
       <div class="brand-text">
         <span class="brand-name">Notes</span>
-        <span class="sidebar-version">alpha v0.11.0</span>
+        <span class="sidebar-version">alpha v0.12.0</span>
       </div>
       <button class="icon-btn sidebar-menu-btn" onclick="toggleSidebarMenu()" title="More"><svg class="icon"><use href="#i-menu"/></svg></button>
     </div>
@@ -1765,7 +1772,11 @@
 // ── State ──────────────────────────────────────────────────────────────────
 let BASE_URL = "";
 let SHIP = "";
-let channelId = "";
+// Eyre channel id: initialized eagerly so tests (and fast user clicks)
+// that fire a poke before connect()'s openChannel() runs don't PUT to
+// /~/channel/ (empty id) and get a 400. The channel comes into being
+// on the first PUT — picking the id here is just a name we'll use.
+let channelId = `notes-ui-${Date.now()}`;
 let eventSource = null;
 let sseState = "connected";  // "connected" | "reconnecting"
 let landscapeTheme = null;   // "light" | "dark" | null (unknown/auto)
@@ -1844,6 +1855,11 @@ async function connect() {
 
   document.getElementById("connect-panel").style.display = "none";
   setConnectionState("connected");
+
+  // Test harness probe: e2e fixtures wait on this to know SHIP is populated
+  // before issuing any pokes. Returns truthy after /~/name resolves; before
+  // that, SHIP is empty and pokes would carry ship:"" → 400 from Eyre.
+  window.__notesGetShip = () => SHIP;
 
   openChannel();
 
@@ -2122,6 +2138,14 @@ function startSSE() {
   if (eventSource) eventSource.close();
   eventSource = new EventSource(`${BASE_URL}/~/channel/${channelId}`, { withCredentials: true });
   eventSource.onmessage = (e) => {
+    // E2E tracing: log every raw SSE message — including poke-acks —
+    // so failures show the full timeline. Gated by localStorage so prod
+    // users don't get console spam.
+    try {
+      if (localStorage.getItem("e2e-log-sse") === "1") {
+        console.log("[sse]", e.data);
+      }
+    } catch {}
     try {
       const msg = JSON.parse(e.data);
       // Resolve/reject the matching outstanding pokeAction first; let
@@ -2326,6 +2350,13 @@ function applyNoteUpdate(nu) {
 function handleEvent(msg) {
   if (!msg.json) return;
   const data = msg.json;
+  // E2E tracing: when localStorage.e2e-log-sse is "1", log every parsed
+  // SSE payload so the test harness can pipe it through page.on('console').
+  try {
+    if (localStorage.getItem("e2e-log-sse") === "1") {
+      console.log("[sse]", JSON.stringify(data));
+    }
+  } catch {}
 
   // New nested r-notes envelope
   if (data.type === "snapshot") {
@@ -4376,9 +4407,6 @@ async function triggerAutoCreate() {
   const waitForCreate = awaitNoteCreate(targetFolder).catch(() => null);
   await pokeNotebook({ type: "create-note", folder: targetFolder, title: "Untitled", body: "" });
   const created = await waitForCreate;
-  // Capture what the user typed during the create roundtrip
-  const pendingBody = editor.value;
-  const pendingTitle = titleInput.value;
   await loadNotes();
   let pickId = created?.id;
   if (pickId == null) {
@@ -4388,6 +4416,12 @@ async function triggerAutoCreate() {
   }
   autoCreating = false;
   if (pickId == null) return;
+  // Capture what the user typed RIGHT BEFORE selectNote — selectNote
+  // overwrites the editor with server-side (empty) values, and previously
+  // we captured these earlier (before loadNotes), so any keystrokes typed
+  // during the loadNotes await were silently dropped on restore.
+  const pendingBody = editor.value;
+  const pendingTitle = titleInput.value;
   await selectNote(pickId);
   // selectNote wrote the server-side (empty) values; restore what they typed
   editor.value = pendingBody;
@@ -6120,3 +6154,69 @@ if ("serviceWorker" in navigator && location.protocol.startsWith("http") && !EMB
 </body>
 </html>
 '''
+::
+::  +manifest: web app manifest served at /notes/manifest.json. The
+::  start_url and scope are anchored at /notes/ so the install prompt
+::  and the service worker only see this app's URL space.
+++  manifest
+  ^-  @t
+  '''
+  {
+    "name": "Notes",
+    "short_name": "Notes",
+    "description": "Collaborative markdown notebooks",
+    "start_url": "/notes/",
+    "scope": "/notes/",
+    "display": "standalone",
+    "background_color": "#0f0f0f",
+    "theme_color": "#7c6af7",
+    "icons": [
+      { "src": "/notes/icon.svg", "sizes": "192x192", "type": "image/svg+xml", "purpose": "any" },
+      { "src": "/notes/icon.svg", "sizes": "512x512", "type": "image/svg+xml", "purpose": "any" },
+      { "src": "/notes/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+    ]
+  }
+  '''
+::
+::  +service-worker: pass-through SW that satisfies the install criteria
+::  on Chrome/Android without taking responsibility for offline caching
+::  yet. Real offline support (app-shell + IndexedDB) is deferred.
+++  service-worker
+  ^-  @t
+  '''
+  self.addEventListener("install", (e) => self.skipWaiting());
+  self.addEventListener("activate", (e) => self.clients.claim());
+  self.addEventListener("fetch", (e) => {
+    // No caching: defer offline support to a later pass. We still need
+    // a fetch handler for the install prompt to be eligible.
+  });
+  '''
+::
+::  +favicon-svg: tight Paper-original design used for the browser tab.
+::  Inset 96/66 (19%/13%) — looks great at 16-32px favicon size where
+::  more padding would just shrink the recognizable shape.
+++  favicon-svg
+  ^-  @t
+  '''
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+    <rect width="512" height="512" rx="112" fill="#7C6AF7"/>
+    <rect x="96" y="66" width="320" height="380" rx="32" fill="none" stroke="#FFFFFF" stroke-width="18"/>
+    <line x1="186" y1="66" x2="186" y2="446" stroke="#FFFFFF" stroke-width="18" stroke-linecap="round"/>
+  </svg>
+  '''
+::
+::  +icon-svg: padded variant used by the manifest (PWA install / dock /
+::  home-screen icon). Same Paper proportions, scaled to ~70% of the
+::  canvas with the stroke trimmed proportionally so the design reads
+::  consistently when shrunk. macOS/iOS app icons want roughly 18-24%
+::  padding around content.
+++  icon-svg
+  ^-  @t
+  '''
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+    <rect width="512" height="512" rx="112" fill="#7C6AF7"/>
+    <rect x="144" y="123" width="224" height="266" rx="22" fill="none" stroke="#FFFFFF" stroke-width="16"/>
+    <line x1="207" y1="123" x2="207" y2="389" stroke="#FFFFFF" stroke-width="16" stroke-linecap="round"/>
+  </svg>
+  '''
+--

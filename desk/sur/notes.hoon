@@ -220,6 +220,14 @@
 ::  $u-notes: wire/stream shape — carries flag so listeners know which notebook
 +$  u-notes  [=flag =u-notebook]
 ::
+::  $u-inbox: events pushed on /v0/inbox/stream for cross-cutting UI signals
+::  (pending invites + a "notebooks changed, please re-scry" ping).
++$  u-inbox
+  $%  [%invite-received =flag from=ship sent-at=@da title=@t]
+      [%invite-removed =flag]
+      [%notebooks-changed ~]
+  ==
+::
 ::  Responses (subscription facts)
 ::  ============================================================
 ::
@@ -241,6 +249,25 @@
   $%  [%pub =log]
       [%sub =time init=_|]
   ==
+::
+::  Scry response types — typed marks for peek endpoints
+::  ============================================================
+::
+::  $notebook-summary: one item from /v0/notebooks (carries flag + visibility)
++$  notebook-summary  [=flag =notebook =visibility]
+::
+::  $notebook-detail: one item from /v0/notebook/~ship/name
++$  notebook-detail   [=flag =notebook =visibility]
+::
+::  $member-record: one item from /v0/members list
++$  member-record     [=ship =role]
+::
+::  $invite-record: one item from /v0/invites list
++$  invite-record     [=flag =invite-info]
+::
+::  $published-record: one item from /v0/published list — metadata only.
+::  HTML body is served via /notes/pub/~host/name/note-id, not this list.
++$  published-record  [=flag note-id=@ud]
 ::
 ::  Type aliases
 +$  action    a-notes

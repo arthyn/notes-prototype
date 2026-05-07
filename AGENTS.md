@@ -10,7 +10,7 @@
 desk/
   app/notes.hoon           # Gall agent (state, pokes, peeks, watches, HTTP handler)
   app/notes-ui/index.html  # Working copy of the UI (source of truth for edits)
-  sur/notes.hoon           # Type definitions (state-0..4, actions, commands, updates, visibility)
+  sur/notes.hoon           # Type definitions (state-1..10, ACUR shapes, legacy v0/v8/v9 entity types)
   lib/notes-json.hoon      # JSON encoding/decoding for all types
   lib/notes-ui.hoon        # Generated file — the UI served to the browser
   mar/notes/action.hoon    # Client action mark
@@ -26,103 +26,121 @@ There's also a companion macOS menubar app at `app/src-tauri/` (Tauri v2). See `
 
 ## UI Workflow (Critical)
 
-The agent imports the UI as a cord at compile time:
+The agent imports the UI core at compile time:
 
 ```hoon
-/=  index  /lib/notes-ui
+/=  ui  /lib/notes-ui
 ```
 
-**This means `app/notes-ui/index.html` is NOT what the browser sees.** The served HTML comes from `lib/notes-ui.hoon`. These two files must stay in sync.
+`lib/notes-ui.hoon` is a `|%` core with arms `++index`, `++manifest`, `++service-worker`, `++favicon-svg`, `++icon-svg`. The agent references them as `index:ui`, `manifest:ui`, etc.
+
+**`app/notes-ui/index.html` is NOT what the browser sees.** The served HTML comes from the `++index` arm in `lib/notes-ui.hoon`. The two must stay in sync — regenerate the lib after every edit.
 
 ### Edit → Sync → Deploy workflow
 
 1. Edit `desk/app/notes-ui/index.html` (the working copy)
-2. Generate the hoon lib wrapper:
+2. Regenerate the `++index` arm in `desk/lib/notes-ui.hoon`:
    ```sh
-   { printf "^-  @t\n'''\n"; cat desk/app/notes-ui/index.html; printf "'''\n"; } > desk/lib/notes-ui.hoon
+   ./scripts/build-notes-ui.sh
    ```
-3. Bump `++dummy` in `desk/app/notes.hoon` to force a recompile (the agent won't pick up UI changes unless the hoon source changes):
+   The script splices the index.html content into the `++index` arm and leaves the static-asset arms (manifest, sw, icons) untouched. To edit those, hand-edit `desk/lib/notes-ui.hoon`.
+3. Bump `++dummy` in `desk/app/notes.hoon` to force a recompile:
    ```hoon
    ++  dummy  'describe-your-change-v1'
    ```
 4. Rsync to the dev ship and commit:
    ```sh
-   rsync -avL desk/ ~/bospur-davmyl-nocsyx-lassul/notes/
+   rsync -avL desk/ ~/sidwyn-nimnev-nocsyx-lassul/notes/
    ```
    **Do NOT use `--delete`** — rsync without delete to avoid wiping ship-side files.
-5. Build and commit via MCP (bospur):
+5. Commit via MCP:
    ```
-   mcp__bospur__build-file  desk=notes  path=/app/notes/hoon
-   mcp__bospur__commit-desk  desk=notes
+   mcp__sidwyn__commit-desk  desk=notes
    ```
 6. Hard-refresh the browser (Cmd+Shift+R) to see changes.
 
 ### Important: triple-quote safety
 
-`lib/notes-ui.hoon` wraps the HTML in a Hoon triple-quoted cord (`'''`). If the HTML ever contains `'''` the build will break. Grep for it before generating.
+`lib/notes-ui.hoon` wraps each asset in a Hoon triple-quoted cord (`'''`). If the index.html ever contains `'''` the build will break — `build-notes-ui.sh` will refuse to run in that case.
 
 ## Dev Ship
 
-The dev moon is `~bospur-davmyl-nocsyx-lassul`. It has a `%notes` desk mounted at `~/bospur-davmyl-nocsyx-lassul/notes/`. Use the bospur MCP tools to build, commit, poke, and scry the agent.
+The default dev ship for `%notes` is `~sidwyn-nimnev-nocsyx-lassul` (mounted at `~/sidwyn-nimnev-nocsyx-lassul/notes/`). Use the sidwyn MCP tools (`mcp__sidwyn__*`) to commit, poke, scry, and run tests. Other moons (bospur, simtyc) host different work streams — do not touch them unless explicitly directed.
 
 ## Agent Architecture
 
 ### State
 
-Current state is `state-4:notes`:
+Current state is `state-10:notes`:
 
 ```
-+$  state-4
-  $:  %4
++$  state-10
+  $:  %10
       books=(map flag [=net =notebook-state])
       next-id=@ud
       published=(map [=flag note-id=@ud] @t)
-      visibilities=(map flag visibility)
+      invites=(map flag invite-info)
   ==
 ```
 
 - `books` — map of notebook flag → `[net notebook-state]`. `net` discriminates `%pub` (we host) vs `%sub` (we subscribe).
 - `next-id` — single counter on this ship for all locally-created notebooks / folders / notes (remote notebooks bring foreign IDs).
 - `published` — compound-keyed on `[flag note-id]` so per-notebook note-id collisions don't clobber each other.
-- `visibilities` — per-notebook `%public` / `%private` (missing = private by default).
+- `invites` — pending invites we've received from other ships.
 
-Each `notebook-state` contains `notebook`, `notebook-members`, `folders`, `notes`. Each notebook has a root folder (`name="/"`). Notes belong to folders via `folder-id`.
+`flag` is `[=ship name=@tas]`. New flags are slugified at create time: title `"My Notes!"` + nid 42 → `'my-notes-42'`.
 
-Migrations: `state-1 → state-2 → state-3 → state-4`. See `+load` in `app/notes.hoon`.
+Each `notebook-state` contains `notebook` (the metadata record), `members`, `visibility`, `folders`, `notes`, and `history` (per-note revision archive).
+
+Migrations follow the tlon-style linear pattern: a `|^` kelt with one `++state-N-to-N+1` arm per version step. The `+$ any-state` head-tagged union and the `=?` chain in `+load` walk forward from whatever version is on disk to state-10.
 
 ### API Surface
 
-**Scry paths** (all prefixed with `/v0/`):
-- `/v0/notebooks` — list all notebooks (includes visibility)
-- `/v0/notebook/~ship/name` — single notebook
-- `/v0/folders/~ship/name` — folders in notebook
-- `/v0/notes/~ship/name` — notes in notebook
-- `/v0/members/~ship/name` — members of notebook
-- `/v0/published` — list of `{host, flagName, noteId}` pairs
+**Scry paths** (all prefixed with `/v0/`, all return typed marks under `mar/notes/`):
+- `/v0/notebooks` — list of notebook-summary `{flag, notebook, visibility}` (mark `%notes-notebooks`)
+- `/v0/notebook/~ship/name` — notebook-detail `{flag, notebook}` (mark `%notes-notebook`)
+- `/v0/folders/~ship/name` — `(list folder)` (mark `%notes-folders`)
+- `/v0/folder/~ship/name/<id>` — single folder (mark `%notes-folder`)
+- `/v0/notes/~ship/name` — `(list note)` (mark `%notes-notes`)
+- `/v0/note/~ship/name/<id>` — single note (mark `%notes-note`)
+- `/v0/note-history/~ship/name/<id>` — `(list note-revision)` (mark `%notes-note-history`)
+- `/v0/members/~ship/name` — `(list member-record)` (mark `%notes-members`)
+- `/v0/invites` — `(list invite-record)` (mark `%notes-invites`)
+- `/v0/published` — `(list published-record)` (mark `%notes-published`)
 
-**Poke mark**: `%notes-action` with a JSON `routed-action` envelope. An optional `_flag` field routes the action to a specific notebook (required when a notebook-id could mean different notebooks on different hosts, i.e., subscribed remote notebooks). Without `_flag` the agent falls back to `find-flag-by-nid`.
+Each mark has both a `++json` grow arm (Eyre `.json` requests) and a `++noun` grow arm. Per-notebook peeks are routed through `++no-peek` inside `no-core` after `++no-abed` loads the notebook context. Cross-cutting peeks (`/v0/notebooks`, `/v0/published`, `/v0/invites`) stay at the top level.
 
-Action types exposed on the wire (see `sur/notes.hoon` for full shapes):
-- Notebook: `create-notebook`, `rename-notebook`, `delete-notebook`, `set-visibility`, `join`, `leave`, `join-remote`, `leave-remote`
-- Folder: `create-folder`, `rename-folder`, `move-folder`, `delete-folder`
-- Note: `create-note`, `update-note` (with `expectedRevision`), `rename-note`, `move-note`, `delete-note`, `batch-import`, `batch-import-tree`
-- Publish (host-only, not forwarded to remote hosts): `publish-note`, `unpublish-note`
+**Poke marks**:
+- `%notes-action` (a-notes) — local actions from our own UI. `+poke %notes-action` asserts `=(our.bowl src.bowl)`. The handler routes notebook-scoped actions through `++no-action`, which builds a c-notes command and pokes the host (which may be us — Gall loops self-pokes back through `+poke %notes-command`).
+- `%notes-command` (c-notes) — cross-ship commands. Two arms: `%notify-invite` (host pushing a pending invite to an invitee) and `%notebook` (subscriber forwarding a notebook-scoped command to the host). The host's `%notebook` arm dispatches to `se-poke` inside `se-core`.
+
+Action types (`a-notes` in `sur/notes.hoon`):
+- Top-level: `%create-notebook`, `%join`, `%leave`, `%accept-invite`, `%decline-invite`, `%notebook`
+- Notebook-scoped (a-notebook): `%rename`, `%delete`, `%visibility`, `%invite`, `%create-folder`, `%folder`, `%create-note`, `%note`, `%batch-import`, `%batch-import-tree`
+- Note-scoped (a-note): `%rename`, `%move`, `%delete`, `%update` (with `expected-revision`), `%publish`, `%unpublish`, `%restore`
+
+`%publish` / `%unpublish` are local-only (don't propagate as c-notes commands) — they manipulate the local `published` map cache.
 
 **Watch paths**:
-- `/v0/notes/~ship/name/stream` — SSE stream for the UI (snapshot + updates)
-- `/v0/notes/~ship/name/updates` — subscription path other ships watch when joining as a remote subscriber
+- `/v0/notes/~ship/name/stream` — local UI subscription (snapshot + updates) — handled by `++no-watch`
+- `/v0/notes/~ship/name/updates` — host-side path other ships watch to receive log updates — handled by `++se-watch`
+- `/v0/inbox/stream` — top-level inbox events (invite received / removed / notebooks-changed)
 
 **HTTP routes** (served under `/notes`):
+- `/notes/manifest.json`, `/notes/sw.js`, `/notes/icon.svg`, `/notes/favicon.svg` — PWA static assets
 - `/notes/pub/~host/name/<noteId>` — serve a published note's stored HTML
-- Anything else → serve the UI `index`
+- `/notes/share/~ship/name` — share-redirect page
+- Anything else under `/notes/*` — serve the UI `index`
+
+HTTP dispatch lives in `++serve-http`.
 
 ### Notebook flag
 
-Notebooks are identified by a "flag" `[ship name]`. Formatted as `~host/name` in URLs and scry paths. The flag is the stable identity across ships.
+Notebooks are identified by a "flag" `[=ship name=@tas]`. Formatted as `~host/name` in URLs and scry paths. The name is a slugified `@tas` term (e.g. `'my-notes-42'`). The flag is the stable identity across ships.
 
 ### Visibility
 
-`%private` (default) rejects `%join` / `%join-remote` from ships that aren't already in `notebook-members`. `%public` accepts any join. Only the owner can toggle via `%set-visibility`.
+`%private` (default) rejects `%join` from ships that aren't already in `members`. `%public` accepts any join. Only the owner can toggle via `%visibility`.
 
 ## Frontend Architecture
 
